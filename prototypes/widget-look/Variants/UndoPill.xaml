@@ -1,0 +1,24 @@
+<!-- PROTOTYPE: the ~5 s Undo pill shown after Complete and Delete. -->
+<UserControl
+    x:Class="Look.UndoPill"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Look">
+    <Border x:Name="Pill" Visibility="{x:Bind S.UndoVisible, Mode=OneWay}" CornerRadius="16" Padding="14,6,6,6"
+            Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+            BorderBrush="{ThemeResource HairlineBrush}" BorderThickness="1">
+        <Border.Shadow>
+            <ThemeShadow />
+        </Border.Shadow>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{x:Bind S.UndoText, Mode=OneWay}" VerticalAlignment="Center" FontSize="12.5" />
+            <Button Click="Undo_Click" Padding="10,3,10,4" CornerRadius="12" FontSize="12.5"
+                    Style="{ThemeResource AccentButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE7A7;" FontSize="12" />
+                    <TextBlock Text="Undo" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,127 @@
+<!-- PROTOTYPE · Variant A "Fluent list": header, Capture box on top, flat rows with a Priority shape and an Effort word chip. -->
+<UserControl
+    x:Class="Look.WidgetA"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Look"
+    Width="360">
+    <Grid Padding="0,0,0,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Padding="16,10,8,4" ColumnSpacing="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Text="Tasks" FontSize="15" FontWeight="SemiBold" Visibility="{x:Bind S.ShowingOpen, Mode=OneWay}" />
+                <TextBlock Text="Done" FontSize="15" FontWeight="SemiBold" Visibility="{x:Bind S.ShowDone, Mode=OneWay}" />
+                <TextBlock Text="{x:Bind local:F.Count(S.CountOpen), Mode=OneWay}" Foreground="{ThemeResource FaintTextBrush}"
+                           FontSize="13" VerticalAlignment="Center" Visibility="{x:Bind S.ShowingOpen, Mode=OneWay}" />
+            </StackPanel>
+            <Button Grid.Column="1" Style="{StaticResource Bare}" Width="30" Height="30" Click="Resort_Click"
+                    ToolTipService.ToolTip="Re-sort by Priority and Effort"
+                    Visibility="{x:Bind local:F.Both(S.Manual, S.ShowingOpen), Mode=OneWay}">
+                <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+            </Button>
+            <Button Grid.Column="2" Style="{StaticResource Bare}" Width="30" Height="30" Click="Done_Click"
+                    ToolTipService.ToolTip="Done view">
+                <Grid>
+                    <FontIcon Glyph="&#xE81C;" FontSize="14" Visibility="{x:Bind S.ShowingOpen, Mode=OneWay}" />
+                    <FontIcon Glyph="&#xE72B;" FontSize="14" Visibility="{x:Bind S.ShowDone, Mode=OneWay}" />
+                </Grid>
+            </Button>
+            <Button Grid.Column="3" Style="{StaticResource Bare}" Width="30" Height="30" Click="Collapse_Click"
+                    ToolTipService.ToolTip="Collapse to the Dock">
+                <FontIcon Glyph="&#xE70E;" FontSize="13" />
+            </Button>
+        </Grid>
+
+        <!-- Capture box -->
+        <TextBox x:Name="Capture" Grid.Row="1" Margin="12,4,12,6" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
+                 PlaceholderText="Capture a thought…" FontSize="13.5"
+                 Visibility="{x:Bind S.ShowingOpen, Mode=OneWay}" />
+
+        <!-- Tasks -->
+        <ListView x:Name="List" Grid.Row="2" MaxHeight="372" Padding="6,0,6,0"
+                  ItemsSource="{x:Bind S.Visible, Mode=OneWay}" ItemContainerStyle="{StaticResource PlainRow}"
+                  CanDragItems="{x:Bind S.ShowingOpen, Mode=OneWay}" CanReorderItems="{x:Bind S.ShowingOpen, Mode=OneWay}"
+                  AllowDrop="{x:Bind S.ShowingOpen, Mode=OneWay}">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="local:TaskVm">
+                    <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- tick -->
+                        <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
+                                Click="Check_Click" Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
+                            <Grid>
+                                <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
+                                <Ellipse Width="17" Height="17" Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                         Visibility="{x:Bind IsStriking, Mode=OneWay}" />
+                                <Ellipse Width="17" Height="17" Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                         Visibility="{x:Bind IsDone, Mode=OneWay}" />
+                                <FontIcon Glyph="&#xE73E;" FontSize="10" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                          Visibility="{x:Bind IsStriking, Mode=OneWay}" />
+                                <FontIcon Glyph="&#xE73E;" FontSize="10" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                          Visibility="{x:Bind IsDone, Mode=OneWay}" />
+                            </Grid>
+                        </Button>
+                        <ProgressRing Width="16" Height="16" IsActive="{x:Bind IsPending, Mode=OneWay}" VerticalAlignment="Top" Margin="3,2,0,0"
+                                      Visibility="{x:Bind IsPending, Mode=OneWay}" />
+
+                        <!-- title + details -->
+                        <StackPanel Grid.Column="1" Spacing="4" Opacity="{x:Bind local:F.DoneFade(IsDone, IsStriking), Mode=OneWay}">
+                            <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
+                                       TextTrimming="CharacterEllipsis" TextDecorations="{x:Bind local:F.Strike(IsStriking), Mode=OneWay}"
+                                       DoubleTapped="Title_DoubleTapped"
+                                       Visibility="{x:Bind local:F.NV(IsEditing), Mode=OneWay}" />
+                            <TextBox Visibility="{x:Bind IsEditing, Mode=OneWay}" Loaded="Edit_Loaded" FontSize="13.5"
+                                     Padding="6,3,6,3" MinHeight="0" />
+                            <TextBlock Text="Interpreting…" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}"
+                                       Visibility="{x:Bind IsPending, Mode=OneWay}" />
+                            <local:Accordion IsOpen="{x:Bind IsExpanded, Mode=OneWay}">
+                                <TextBlock Text="{x:Bind Details, Mode=OneWay}" FontSize="12.5" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource MutedTextBrush}" Margin="0,0,0,2" />
+                            </local:Accordion>
+                        </StackPanel>
+
+                        <!-- chips -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top"
+                                    Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
+                            <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource FaintTextBrush}" Margin="0,0,4,0"
+                                      Visibility="{x:Bind HasDetails, Mode=OneWay}" />
+                            <Button Style="{StaticResource Bare}" Padding="5,4,5,4" Click="Pri_Click"
+                                    ToolTipService.ToolTip="{x:Bind local:F.PriWord(Priority), Mode=OneWay}">
+                                <Path Width="10" Height="10" Stretch="Uniform" Data="{x:Bind local:F.PriShape(Priority), Mode=OneWay}"
+                                      Fill="{x:Bind local:F.Pri(Priority), Mode=OneWay}" />
+                            </Button>
+                            <Button Style="{StaticResource Bare}" Padding="7,1,7,2" CornerRadius="9" Click="Eff_Click"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                <TextBlock Text="{x:Bind local:F.EffWord(Effort), Mode=OneWay}" FontSize="11"
+                                           Foreground="{ThemeResource MutedTextBrush}" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock Grid.Row="2" Text="All clear." HorizontalAlignment="Center" Margin="0,18,0,22"
+                   Foreground="{ThemeResource FaintTextBrush}" Visibility="{x:Bind local:F.Both(S.AllClear, S.ShowingOpen), Mode=OneWay}" />
+
+        <local:UndoPill Grid.Row="2" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+    </Grid>
+</UserControl>

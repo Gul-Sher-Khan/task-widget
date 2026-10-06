@@ -1,0 +1,36 @@
+<!-- PROTOTYPE: colour tokens. Priority colours are fixed per theme and never use the accent;
+     the accent appears only on interactive bits (focus, caret, Capture box border, attention dot). -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="PriHighBrush" Color="#FF6A6E" />
+            <SolidColorBrush x:Key="PriMediumBrush" Color="#F2B33D" />
+            <SolidColorBrush x:Key="PriLowBrush" Color="#8FA3BF" />
+            <SolidColorBrush x:Key="PriHighSoftBrush" Color="#33FF6A6E" />
+            <SolidColorBrush x:Key="PriMediumSoftBrush" Color="#2EF2B33D" />
+            <SolidColorBrush x:Key="PriLowSoftBrush" Color="#2E8FA3BF" />
+            <SolidColorBrush x:Key="SurfaceSolidBrush" Color="#202022" />
+            <SolidColorBrush x:Key="CardBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="CardHoverBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="HairlineBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#99FFFFFF" />
+            <SolidColorBrush x:Key="FaintTextBrush" Color="#66FFFFFF" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="PriHighBrush" Color="#D13438" />
+            <SolidColorBrush x:Key="PriMediumBrush" Color="#B7740A" />
+            <SolidColorBrush x:Key="PriLowBrush" Color="#5C6F8A" />
+            <SolidColorBrush x:Key="PriHighSoftBrush" Color="#1FD13438" />
+            <SolidColorBrush x:Key="PriMediumSoftBrush" Color="#24B7740A" />
+            <SolidColorBrush x:Key="PriLowSoftBrush" Color="#1F5C6F8A" />
+            <SolidColorBrush x:Key="SurfaceSolidBrush" Color="#F4F4F6" />
+            <SolidColorBrush x:Key="CardBrush" Color="#B3FFFFFF" />
+            <SolidColorBrush x:Key="CardHoverBrush" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="HairlineBrush" Color="#14000000" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#99000000" />
+            <SolidColorBrush x:Key="FaintTextBrush" Color="#66000000" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>
