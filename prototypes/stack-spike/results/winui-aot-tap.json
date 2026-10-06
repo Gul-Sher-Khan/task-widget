@@ -1,0 +1,46 @@
+{
+  "label": "winui-aot-tap",
+  "trigger": "tap",
+  "exe": "C:\\Users\\gulsher-dev\\Desktop\\task-widget\\.claude\\worktrees\\stack-spike\\prototypes\\stack-spike\\out\\winui-aot\\SpikeWinUI.exe",
+  "tasks": 30,
+  "backdrop": 0,
+  "idleSeconds": 15,
+  "docked": {
+    "Processes": 1,
+    "WorkingSetMB": 124.3,
+    "PrivateWSMB": 59.0,
+    "PrivateBytesMB": 75.2,
+    "CpuSeconds": 0.296875,
+    "Names": "SpikeWinUIx1"
+  },
+  "dockedCpuPct": 0.0,
+  "expanded": {
+    "Processes": 1,
+    "WorkingSetMB": 149.1,
+    "PrivateWSMB": 78.0,
+    "PrivateBytesMB": 95.5,
+    "CpuSeconds": 3.5,
+    "Names": "SpikeWinUIx1"
+  },
+  "firstHotkeyMs": 21.1,
+  "warmP50Ms": 9.7,
+  "warmP95Ms": 12.2,
+  "warmMaxMs": 12.2,
+  "latenciesMs": [
+    21.1,
+    9.7,
+    8.9,
+    9.2,
+    10.1,
+    10.7,
+    8.2,
+    12.2,
+    10.5,
+    8.9
+  ],
+  "trend": [
+    "  16s WS 124.3 / privWS 59 / private 75.2 MB"
+  ],
+  "when": "2026-10-06T19:32:03",
+  "systemMemoryLoadPct": 80.0
+}

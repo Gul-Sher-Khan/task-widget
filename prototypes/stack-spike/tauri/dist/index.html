@@ -1,0 +1,119 @@
+<!doctype html>
+<!-- PROTOTYPE: throwaway stack spike. Same content and motion as the WinUI spike. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Task Widget spike</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1b1b1b; --muted: rgba(0,0,0,.6); --pill: rgba(0,0,0,.06);
+          --field: rgba(255,255,255,.7); --border: rgba(0,0,0,.12); --solid: #f3f3f3; --accent: #005fb8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #fff; --muted: rgba(255,255,255,.62); --pill: rgba(255,255,255,.08);
+            --field: rgba(255,255,255,.06); --border: rgba(255,255,255,.1); --solid: #202020; --accent: #60cdff; }
+  }
+  html, body { margin: 0; height: 100%; background: transparent; color: var(--fg); overflow: hidden;
+               font: 14px/20px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; user-select: none; }
+  body.solid { background: var(--solid); }
+  .wrap { display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box; padding: 12px 14px; }
+  header { display: flex; align-items: center; height: 44px; flex: none; }
+  header .t { flex: 1; }
+  header b { font-weight: 600; display: block; }
+  .stats, .hint { font-size: 11px; line-height: 16px; color: var(--muted); }
+  #capture, #list { display: none; }
+  .expanded #capture, .expanded #list { display: block; }
+  #capture { flex: none; height: 32px; box-sizing: border-box; padding: 5px 11px; font: inherit; color: inherit;
+             background: var(--field); border: 1px solid var(--border); border-bottom-color: var(--muted);
+             border-radius: 4px; outline: none; }
+  #capture:focus { border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
+  #list { flex: 1; overflow-y: auto; margin: 0 -2px; padding: 0; list-style: none; }
+  .expanded #list { animation: in 260ms cubic-bezier(.2,0,0,1); }
+  @keyframes in { from { opacity: 0; transform: translateY(-12px); } }
+  li { display: flex; align-items: center; gap: 10px; padding: 6px 0; min-height: 28px; }
+  li.new { animation: in 260ms cubic-bezier(.2,0,0,1); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--pill); opacity: .8; }
+  #list::-webkit-scrollbar { width: 6px; } #list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="t"><b>Task Widget</b><div class="stats" id="stats"></div></div>
+    <div class="hint">Ctrl+Alt+T</div>
+  </header>
+  <input id="capture" placeholder="Capture… (Enter adds a Task, Esc docks)" autocomplete="off">
+  <ul id="list"></ul>
+</div>
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+  const titles = ["Reply to Sana about the Q3 budget", "Book dentist appointment", "Fix flaky login test",
+    "Draft onboarding email for new hire", "Renew domain before it lapses", "Review Ali's PR on caching",
+    "Buy groceries for the weekend", "Call the bank about the card", "Write release notes for 0.4",
+    "Clean up the Downloads folder", "Update the team roadmap slide", "Send invoice to the client",
+    "Pick up laundry", "Read the WebView2 perf article", "Plan Friday's demo"];
+  const efforts = ["Quick", "Short", "Long"];
+  const dots = ["#e5484d", "#f5a524", "#8b8d98"];
+  const names = ["Mica", "Mica Alt", "Mica (kept-active n/a)", "Acrylic", "Solid"];
+  const list = document.getElementById("list"), input = document.getElementById("capture"),
+        stats = document.getElementById("stats");
+  let count = 0, backdrop = 0, label = "Mica", fps = 0, animMs = 0;
+
+  function row(title, effort, dot, isNew) {
+    const li = document.createElement("li");
+    if (isNew) li.className = "new";
+    li.innerHTML = `<span class="dot" style="background:${dot}"></span><span class="title"></span><span class="pill">${effort}</span>`;
+    li.querySelector(".title").textContent = title;
+    return li;
+  }
+  const updateStats = () => stats.textContent = `${label} · ${count} Tasks · last anim ${fps.toFixed(0)} fps / ${animMs.toFixed(0)} ms · F2 backdrop`;
+
+  // Counts real rendered frames for a span of time, like the WinUI spike's Rendering counter.
+  function measureFrames(ms) {
+    const start = performance.now(); let frames = 0;
+    const tick = (now) => { frames++; if (now - start < ms) requestAnimationFrame(tick);
+      else { animMs = now - start; fps = frames / (animMs / 1000); updateStats(); } };
+    requestAnimationFrame(tick);
+  }
+
+  function markWhenFocused(tries = 0) {
+    requestAnimationFrame(async () => {
+      if (document.hasFocus() && document.activeElement === input && await invoke("mark_focused")) return;
+      if (tries < 120) markWhenFocused(tries + 1);
+    });
+  }
+
+  listen("expand", () => {
+    document.body.classList.add("expanded");
+    input.focus();
+    markWhenFocused();
+    measureFrames(260);
+  });
+  listen("docked", () => document.body.classList.remove("expanded"));
+
+  document.addEventListener("keydown", async (e) => {
+    if (e.key === "Escape") { e.preventDefault(); invoke("dock"); }
+    else if (e.key === "F2") {
+      e.preventDefault();
+      backdrop = (backdrop + 1) % names.length;
+      label = await invoke("set_backdrop", { mode: backdrop });
+      document.body.classList.toggle("solid", backdrop === 4);
+      updateStats();
+    } else if (e.key === "Enter" && document.activeElement === input && input.value.trim()) {
+      list.prepend(row(input.value.trim(), "Quick", dots[0], true));
+      input.value = ""; count++; updateStats();
+    }
+  });
+
+  (async () => {
+    const [n, b] = await invoke("config");
+    backdrop = b; label = names[b] ?? "Solid";
+    document.body.classList.toggle("solid", b === 4);
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) frag.append(row(titles[i % titles.length], efforts[i % 3], dots[Math.floor(i / 3) % 3]));
+    list.append(frag); count = n; updateStats();
+  })();
+</script>
+</body>
+</html>

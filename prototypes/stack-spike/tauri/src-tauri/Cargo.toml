@@ -1,0 +1,24 @@
+# PROTOTYPE: throwaway stack spike for "Stack memory and animation spike". Not production code.
+[package]
+name = "spike-tauri"
+version = "0.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-global-shortcut = "2.4"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Performance",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

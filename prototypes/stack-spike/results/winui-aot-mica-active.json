@@ -1,0 +1,40 @@
+{
+  "label": "winui-aot-mica-active",
+  "trigger": "combo",
+  "exe": "C:\\Users\\gulsher-dev\\Desktop\\task-widget\\.claude\\worktrees\\stack-spike\\prototypes\\stack-spike\\out\\winui-aot\\SpikeWinUI.exe",
+  "tasks": 30,
+  "backdrop": 2,
+  "idleSeconds": 60,
+  "docked": {
+    "Processes": 1,
+    "WorkingSetMB": 124.2,
+    "PrivateWSMB": 59.0,
+    "PrivateBytesMB": 76.1,
+    "CpuSeconds": 0.40625,
+    "Names": "SpikeWinUIx1"
+  },
+  "dockedCpuPct": 0.0,
+  "expanded": {
+    "Processes": 1,
+    "WorkingSetMB": 148.8,
+    "PrivateWSMB": 77.6,
+    "PrivateBytesMB": 95.9,
+    "CpuSeconds": 1.046875,
+    "Names": "SpikeWinUIx1"
+  },
+  "firstHotkeyMs": 28.6,
+  "warmP50Ms": 13.4,
+  "warmP95Ms": 13.4,
+  "warmMaxMs": 13.4,
+  "latenciesMs": [
+    28.6,
+    13.4,
+    12.3
+  ],
+  "trend": [
+    "  30s WS 124.2 / privWS 59.1 / private 76.2 MB",
+    "  61s WS 124.2 / privWS 59 / private 76.1 MB"
+  ],
+  "when": "2026-10-06T19:33:30",
+  "systemMemoryLoadPct": 80.0
+}
