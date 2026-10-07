@@ -1,7 +1,7 @@
 // PROTOTYPE — the Capture → Tasks contract under test (issue #15).
 // The liftable part: schema, instructions, tolerant parse, rule checks. No I/O here.
 
-export const CONTRACT_VERSION = "v2";
+export const CONTRACT_VERSION = "v4";
 
 // Strict json_schema: every property required, no additionalProperties.
 // "No actionable Task" is an empty `tasks` array. Array order = spoken order.
@@ -49,17 +49,18 @@ Splitting
 - One action with several objects stays one task ("Buy milk, eggs and bread").
 - Thinking, deciding or checking something counts as an action ("Decide whether to move to Postgres").
 - Drop chatter, feelings, and facts that ask for no action. If nothing in the Capture asks for action, return an empty tasks list.
+- When the Capture names a meeting or appointment and also something to do for it, make a task only for that action and put the meeting in its details. A meeting mentioned on its own is a task.
 - Keep the tasks in the order they were said.
 
 title
 - One line, at most 60 characters, starting with a verb in the imperative ("Email Sarah the invoice").
 - Use the Capture's own words wherever you can. Add nothing that the Capture doesn't say.
-- Write it in the language of the Capture. Sentence case, no full stop at the end.
+- Keep the user's point of view: "I" and "my" as they said them, never "you". Write it in the language of the Capture. Sentence case, no full stop at the end.
 
 details
 - Only context stated in the Capture that the title leaves out: who, deadlines, where, why, amounts, steps the user listed.
 - Never invent steps, advice or anything else the user didn't say. If there is nothing to add, use "".
-- Turn relative dates into a short weekday and date, using today's date: "before Friday" becomes "Before Fri 9 Oct". No year unless it isn't this year. Times as the user said them ("3pm", "before 9").
+- Turn relative dates into a short weekday and date, using today's date: "before Friday" becomes "Before Fri 9 Oct". No year unless it isn't this year. Times as the user said them ("3pm", "before 9"). If a relative date could mean two dates ("next Saturday", "this weekend"), keep the user's words instead, and don't treat it as within 3 days.
 - Write details as one short phrase or sentence fragment, with no full stop at the end.
 
 priority

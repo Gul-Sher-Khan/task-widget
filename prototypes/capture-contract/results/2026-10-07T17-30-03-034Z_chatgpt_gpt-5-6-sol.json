@@ -1,0 +1,609 @@
+{
+  "connection": "chatgpt",
+  "model": "gpt-5.6-sol",
+  "contract": "v4",
+  "startedAt": "2026-10-07T17:30:03.035Z",
+  "instructions": "You turn one dictated note (a \"Capture\") into tasks for the user's personal to-do list.\n\nThe Capture was dictated, so it may contain filler, false starts, self-corrections and transcription slips. When the user corrects themselves (\"Tuesday, no, Thursday\"), keep only the correction. Ignore filler.\n\nSplitting\n- Make one task per action the user would tick off on its own.\n- Never break an action into steps or sub-tasks, even if the user lists the steps. Put steps they said into details instead.\n- One action with several objects stays one task (\"Buy milk, eggs and bread\").\n- Thinking, deciding or checking something counts as an action (\"Decide whether to move to Postgres\").\n- Drop chatter, feelings, and facts that ask for no action. If nothing in the Capture asks for action, return an empty tasks list.\n- When the Capture names a meeting or appointment and also something to do for it, make a task only for that action and put the meeting in its details. A meeting mentioned on its own is a task.\n- Keep the tasks in the order they were said.\n\ntitle\n- One line, at most 60 characters, starting with a verb in the imperative (\"Email Sarah the invoice\").\n- Use the Capture's own words wherever you can. Add nothing that the Capture doesn't say.\n- Keep the user's point of view: \"I\" and \"my\" as they said them, never \"you\". Write it in the language of the Capture. Sentence case, no full stop at the end.\n\ndetails\n- Only context stated in the Capture that the title leaves out: who, deadlines, where, why, amounts, steps the user listed.\n- Never invent steps, advice or anything else the user didn't say. If there is nothing to add, use \"\".\n- Turn relative dates into a short weekday and date, using today's date: \"before Friday\" becomes \"Before Fri 9 Oct\". No year unless it isn't this year. Times as the user said them (\"3pm\", \"before 9\"). If a relative date could mean two dates (\"next Saturday\", \"this weekend\"), keep the user's words instead, and don't treat it as within 3 days.\n- Write details as one short phrase or sentence fragment, with no full stop at the end.\n\npriority\n- high: only when the Capture itself gives a reason: a deadline within 3 days of today, someone waiting on or blocked by the user, or a stated bad consequence (money, health, legal, something breaking).\n- medium: it matters, but nothing breaks this week. A deadline more than 3 days away is medium. This is the default: an ordinary errand, email or chore with no reason given is medium.\n- low: nice to do; nothing happens if it slips (\"someday\", \"at some point\", \"if I get time\").\n- Words the user says about urgency (\"urgent\", \"no rush\", \"whenever\") win over your own judgement.\n\neffort (how long the action itself takes)\n- quick: 15 minutes or less (a call, a short message, a purchase on the way).\n- short: up to an hour.\n- long: more than an hour (writing, building, refactoring, studying).\n\nToday is Wednesday 7 Oct 2026.",
+  "items": [
+    {
+      "id": "three-mixed",
+      "run": 1,
+      "capture": "Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sarah the invoice\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Refactor the auth module\",\"details\":\"Before Fri 9 Oct\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Buy milk\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0f50172bce80045f016ac6816ebf5087d0b3fdf4cf54749826": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "rs_0f50172bce80045f016ac6817121d087d0af5bc36f37d67741": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 43
+            },
+            "msg_0f50172bce80045f016ac68176306887d082f90cef0b475377": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 74
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 74
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 684,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 787,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 117,
+        "output_tokens_details": {
+          "reasoning_tokens": 43
+        },
+        "total_tokens": 904
+      },
+      "tasks": [
+        {
+          "title": "Email Sarah the invoice",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Refactor the auth module",
+          "details": "Before Fri 9 Oct",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Buy milk",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 10017
+    },
+    {
+      "id": "ramble",
+      "run": 1,
+      "capture": "Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.",
+      "raw": "{\"tasks\":[{\"title\":\"Be home for the plumber\",\"details\":\"Thu 8 Oct before nine; the landlord said the plumber is coming in the morning\",\"priority\":\"high\",\"effort\":\"short\"},{\"title\":\"Cancel the Adobe subscription\",\"details\":\"It renews on Thu 15 Oct\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Send Zain the API docs\",\"details\":\"He is blocked on them\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Look into whether the widget can use less memory\",\"details\":\"When it is docked, at some point\",\"priority\":\"low\",\"effort\":\"short\"},{\"title\":\"Buy a birthday gift for Fatima\",\"details\":\"Her birthday is next Saturday\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_08e80ea997513c5f016ac68178150487d0ab883fc00e81e747": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 101,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 101,
+              "output_tokens": 0
+            },
+            "rs_08e80ea997513c5f016ac68178fe8c87d08291f6d3b796548e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 168
+            },
+            "msg_08e80ea997513c5f016ac6817c1f5887d08f88b452407b6730": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 165
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 165
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 684,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 863,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 333,
+        "output_tokens_details": {
+          "reasoning_tokens": 168
+        },
+        "total_tokens": 1196
+      },
+      "tasks": [
+        {
+          "title": "Be home for the plumber",
+          "details": "Thu 8 Oct before nine; the landlord said the plumber is coming in the morning",
+          "priority": "high",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Cancel the Adobe subscription",
+          "details": "It renews on Thu 15 Oct",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Send Zain the API docs",
+          "details": "He is blocked on them",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Look into whether the widget can use less memory",
+          "details": "When it is docked, at some point",
+          "priority": "low",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Buy a birthday gift for Fatima",
+          "details": "Her birthday is next Saturday",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 8620
+    },
+    {
+      "id": "three-mixed",
+      "run": 2,
+      "capture": "Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sarah the invoice\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Refactor the auth module\",\"details\":\"Before Fri 9 Oct\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Buy milk\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_02e2496f2e0794bd016ac6818096b487d0b61f45ce3e7a0552": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "rs_02e2496f2e0794bd016ac68181b0e887d0b3606d5856387118": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 43
+            },
+            "msg_02e2496f2e0794bd016ac681828a4887d0aebac1693870653e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 74
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 74
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 684,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 787,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 117,
+        "output_tokens_details": {
+          "reasoning_tokens": 43
+        },
+        "total_tokens": 904
+      },
+      "tasks": [
+        {
+          "title": "Email Sarah the invoice",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Refactor the auth module",
+          "details": "Before Fri 9 Oct",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Buy milk",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4770
+    },
+    {
+      "id": "ramble",
+      "run": 2,
+      "capture": "Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.",
+      "raw": "{\"tasks\":[{\"title\":\"Be home for the plumber\",\"details\":\"Thu 8 Oct before 9; the plumber is coming in the morning\",\"priority\":\"high\",\"effort\":\"short\"},{\"title\":\"Cancel the Adobe subscription\",\"details\":\"It renews on Thu 15 Oct\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Send Zain the API docs\",\"details\":\"He's blocked on it\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Look into whether the widget can use less memory\",\"details\":\"When it's docked; at some point\",\"priority\":\"low\",\"effort\":\"short\"},{\"title\":\"Buy a birthday gift for Fatima\",\"details\":\"Her birthday is next Saturday\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_06b299ba284ef764016ac68185af0487d0b08cd27666edc39b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 101,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 101,
+              "output_tokens": 0
+            },
+            "rs_06b299ba284ef764016ac681870e6087d0943c33a5db801a01": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 189
+            },
+            "msg_06b299ba284ef764016ac6818a86f487d086a55121e00a1c3e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 161
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 161
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 684,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 863,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 350,
+        "output_tokens_details": {
+          "reasoning_tokens": 189
+        },
+        "total_tokens": 1213
+      },
+      "tasks": [
+        {
+          "title": "Be home for the plumber",
+          "details": "Thu 8 Oct before 9; the plumber is coming in the morning",
+          "priority": "high",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Cancel the Adobe subscription",
+          "details": "It renews on Thu 15 Oct",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Send Zain the API docs",
+          "details": "He's blocked on it",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Look into whether the widget can use less memory",
+          "details": "When it's docked; at some point",
+          "priority": "low",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Buy a birthday gift for Fatima",
+          "details": "Her birthday is next Saturday",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 9543
+    },
+    {
+      "id": "three-mixed",
+      "run": 3,
+      "capture": "Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sarah the invoice\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Refactor the auth module\",\"details\":\"Before Fri 9 Oct\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Buy milk\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_092a15744c5c7b49016ac6818ed5b887d0ad3bdfaa0cb76d30": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "msg_092a15744c5c7b49016ac6818fb02c87d09049e395efb62fd5": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 72
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 72
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 684,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 787,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 72,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 859
+      },
+      "tasks": [
+        {
+          "title": "Email Sarah the invoice",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Refactor the auth module",
+          "details": "Before Fri 9 Oct",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Buy milk",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3564
+    },
+    {
+      "id": "ramble",
+      "run": 3,
+      "capture": "Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.",
+      "raw": "{\"tasks\":[{\"title\":\"Be home for the plumber\",\"details\":\"Thu 8 Oct, before nine\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Cancel the Adobe subscription\",\"details\":\"Renews Thu 15 Oct\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Send Zain the API docs\",\"details\":\"He's blocked on it\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Look into whether the widget can use less memory\",\"details\":\"When it's docked\",\"priority\":\"low\",\"effort\":\"short\"},{\"title\":\"Buy a birthday gift for Fatima\",\"details\":\"Her birthday is next Saturday\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_090df1c0a9792873016ac68192825c87d08155f585a716ad1d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 101,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 101,
+              "output_tokens": 0
+            },
+            "rs_090df1c0a9792873016ac6819417e487d086456e5597ee619b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 236
+            },
+            "msg_090df1c0a9792873016ac6819872c887d0929319320b91666b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 147
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 147
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 684,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 863,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 383,
+        "output_tokens_details": {
+          "reasoning_tokens": 236
+        },
+        "total_tokens": 1246
+      },
+      "tasks": [
+        {
+          "title": "Be home for the plumber",
+          "details": "Thu 8 Oct, before nine",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Cancel the Adobe subscription",
+          "details": "Renews Thu 15 Oct",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Send Zain the API docs",
+          "details": "He's blocked on it",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Look into whether the widget can use less memory",
+          "details": "When it's docked",
+          "priority": "low",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Buy a birthday gift for Fatima",
+          "details": "Her birthday is next Saturday",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 10075
+    }
+  ]
+}
