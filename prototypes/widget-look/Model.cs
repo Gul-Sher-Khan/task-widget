@@ -150,7 +150,7 @@ public sealed class Store : Bindable
         if (t.IsDone) { Uncomplete(t); return; }
         if (t.IsStriking) { t.IsStriking = false; return; } // second tick within the window cancels
         t.IsStriking = true;
-        Shell.After(1500, () =>
+        Shell.After((int)Shell.Ms("StrikeHoldMs"), () =>
         {
             if (!t.IsStriking || !Open.Contains(t)) return;
             int idx = Open.IndexOf(t);
@@ -289,7 +289,7 @@ public sealed class Store : Bindable
         UndoText = what;
         UndoVisible = true;
         int token = ++pillToken;
-        Shell.After(5000, () => { if (token == pillToken) UndoVisible = false; });
+        Shell.After((int)Shell.Ms("UndoStayMs"), () => { if (token == pillToken) UndoVisible = false; });
     }
 
     public void Undo()

@@ -20,7 +20,6 @@ public static class F
     public static Visibility VS(string s) => string.IsNullOrEmpty(s) ? Visibility.Collapsed : Visibility.Visible;
 
     public static Brush Pri(Pri p) => Shell.Res($"Pri{p}Brush");
-    public static Brush PriSoft(Pri p) => Shell.Res($"Pri{p}SoftBrush");
 
     // Priority is shown by shape as well as colour: High ▲, Medium ◆, Low ▼.
     public static Geometry PriShape(Pri p) => Geo(p switch
@@ -31,7 +30,6 @@ public static class F
     });
 
     public static Brush PriBy(string p) => Pri(System.Enum.Parse<Pri>(p));
-    public static Brush PriSoftBy(string p) => PriSoft(System.Enum.Parse<Pri>(p));
     public static Geometry ShapeBy(string p) => PriShape(System.Enum.Parse<Pri>(p));
 
     // Same shape under another name: x:Bind evaluates identical calls once and would share one Geometry between two Paths.
@@ -98,8 +96,8 @@ public sealed class Accordion : ContentControl
         double to = open ? full : 0;
 
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        var h = new DoubleAnimation { From = from, To = to, Duration = TimeSpan.FromMilliseconds(open ? 220 : 170), EasingFunction = ease, EnableDependentAnimation = true };
-        var o = new DoubleAnimation { To = open ? 1 : 0, Duration = TimeSpan.FromMilliseconds(open ? 260 : 120), EasingFunction = ease };
+        var h = new DoubleAnimation { From = from, To = to, Duration = TimeSpan.FromMilliseconds(Shell.Ms(open ? "AccordionOpenMs" : "AccordionCloseMs")), EasingFunction = ease, EnableDependentAnimation = true };
+        var o = new DoubleAnimation { To = open ? 1 : 0, Duration = TimeSpan.FromMilliseconds(Shell.Ms(open ? "AccordionFadeInMs" : "AccordionFadeOutMs")), EasingFunction = ease };
         Storyboard.SetTarget(h, this); Storyboard.SetTargetProperty(h, "Height");
         Storyboard.SetTarget(o, this); Storyboard.SetTargetProperty(o, "Opacity");
         var sb = new Storyboard();

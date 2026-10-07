@@ -14,7 +14,7 @@ namespace Look;
 public sealed partial class ProtoBar : Window
 {
     readonly TextBlock state = Label(11, false);
-    readonly Button dock, pri, eff, theme, backdrop;
+    readonly Button contrast, slow, theme, backdrop;
     static readonly string[] Samples =
     {
         "Email Bilal the signed contract, he's waiting on it today and also plan the offsite agenda",
@@ -35,13 +35,12 @@ public sealed partial class ProtoBar : Window
         Native.ToolWindow(h, false);
         var P = Shell.Prefs;
 
-        dock = Btn("", () => { P.DockStyle = (P.DockStyle + 1) % Prefs.DockStyles.Length; Shell.Apply(); });
-        pri = Btn("", () => { P.PriStyle = (P.PriStyle + 1) % Prefs.PriStyles.Length; Shell.Apply(); });
-        eff = Btn("", () => { P.EffStyle = (P.EffStyle + 1) % Prefs.EffStyles.Length; Shell.Apply(); });
+        contrast = Btn("", () => { P.ContrastPreview = !P.ContrastPreview; Shell.Apply(); });
+        slow = Btn("", () => { P.SlowMo = !P.SlowMo; Shell.Apply(); });
         theme = Btn("", () => P.Theme = (P.Theme + 1) % 3);
         backdrop = Btn("", () => P.Backdrop = (P.Backdrop + 1) % 4);
 
-        var row1 = Row(dock, pri, eff, theme, backdrop);
+        var row1 = Row(theme, backdrop, contrast, slow);
         var row2 = Row(
             Btn("Fake Capture", () => { Shell.Store.Capture(Samples[sample++ % Samples.Length]); Refresh(); }),
             Btn("Attention dot", () => { Shell.Store.Attention = !Shell.Store.Attention; Refresh(); }),
@@ -68,13 +67,12 @@ public sealed partial class ProtoBar : Window
     {
         var st = Shell.Store;
         var P = Shell.Prefs;
-        Text(dock, "Dock: " + Prefs.DockStyles[P.DockStyle]);
-        Text(pri, "Priority icons: " + Prefs.PriStyles[P.PriStyle]);
-        Text(eff, "Effort: " + Prefs.EffStyles[P.EffStyle]);
+        Text(contrast, "Contrast preview: " + (P.ContrastPreview ? "on" : "off"));
+        Text(slow, "Slow-mo (5x): " + (P.SlowMo ? "on" : "off"));
         Text(theme, "Theme: " + Shell.ThemeNames[P.Theme]);
         Text(backdrop, "Backdrop: " + Shell.BackdropNames[P.Backdrop]);
         state.Text = $"PROTOTYPE · {(Shell.Docked ? "Docked" : Shell.Raised ? "Widget raised" : "Widget on desktop")} · " +
-                     $"{st.CountOpen} open (H{st.CountHigh} M{st.CountMedium} L{st.CountLow}) · {st.Done.Count} done · " +
+                     $"{(Shell.SystemContrast ? "Windows contrast theme · " : "")}{st.CountOpen} open (H{st.CountHigh} M{st.CountMedium} L{st.CountLow}) · {st.Done.Count} done · " +
                      $"order {(st.Manual ? "manual" : "ranked")} · processing {st.Processing} · dot {(st.Attention ? "on" : "off")} · " +
                      "tap Ctrl+Shift to raise / commit, Esc to drop";
     }

@@ -27,20 +27,22 @@ public static class Shell
     static bool sessionFromDock, applyQueued;
     static DispatcherQueue dq;
     static readonly UISettings ui = new();
+    static readonly AccessibilitySettings a11y = new();
+    static readonly System.Collections.Generic.Dictionary<object, object> darkOriginals = new();
+    static bool previewApplied;
 
     public static void Start()
     {
         dq = DispatcherQueue.GetForCurrentThread();
         Store.Seed(9);
-        // Start-up overrides, handy for screenshots: LOOK_DOCK 0-2, LOOK_PRI 0-2, LOOK_EFF 0-2, LOOK_THEME 0-2,
-        // LOOK_BACKDROP 0-3, LOOK_DOCKED=1, LOOK_BUSY=1, LOOK_SETTINGS=1.
-        Prefs.DockStyle = Env("LOOK_DOCK");
-        Prefs.PriStyle = Env("LOOK_PRI");
-        Prefs.EffStyle = Env("LOOK_EFF");
+        // Start-up overrides, handy for screenshots: LOOK_THEME 0-2, LOOK_BACKDROP 0-3, LOOK_CONTRAST=1,
+        // LOOK_DOCKED=1, LOOK_BUSY=1, LOOK_SETTINGS=1, LOOK_NOBAR=1.
+        Prefs.ContrastPreview = Env("LOOK_CONTRAST") == 1;
         Prefs.Theme = Env("LOOK_THEME");
         Prefs.Backdrop = Env("LOOK_BACKDROP");
         Prefs.ShowSettings = Env("LOOK_SETTINGS") == 1;
-        ui.ColorValuesChanged += (_, _) => dq.TryEnqueue(() => { if (Prefs.Theme == 0) Apply(); });
+        // Fires for dark/light, accent and contrast-theme changes alike (HighContrastChanged is unavailable unpackaged).
+        ui.ColorValuesChanged += (_, _) => dq.TryEnqueue(Apply);
         Prefs.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(Prefs.Theme) or nameof(Prefs.Backdrop)) QueueApply();
@@ -74,7 +76,44 @@ public static class Shell
 
     static int Env(string name) => int.TryParse(Environment.GetEnvironmentVariable(name), out int v) ? v : 0;
 
-    public static ElementTheme Theme => Prefs.Theme switch
+    // ---- contrast ----
+    public static bool SystemContrast => a11y.HighContrast;
+    public static bool Contrast => SystemContrast || Prefs.ContrastPreview;
+
+    // Prototype only: lay the ContrastPreview tokens over the Dark ones (and restore them when it's switched off).
+    static void ApplyContrastPreview()
+    {
+        var tokens = Application.Current.Resources.MergedDictionaries[1];
+        var dark = (ResourceDictionary)tokens.ThemeDictionaries["Dark"];
+        var preview = (ResourceDictionary)tokens["ContrastPreview"];
+        bool on = Prefs.ContrastPreview && !SystemContrast;
+        if (on == previewApplied) return;
+        foreach (var kv in preview)
+        {
+            if (on)
+            {
+                darkOriginals[kv.Key] = dark.TryGetValue(kv.Key, out var orig) ? orig : null;
+                dark[kv.Key] = kv.Value;
+            }
+            else if (darkOriginals.TryGetValue(kv.Key, out var orig))
+            {
+                if (orig != null) dark[kv.Key] = orig; else dark.Remove(kv.Key);
+            }
+        }
+        previewApplied = on;
+    }
+
+    // ---- motion tokens (Motion.xaml); Slow-mo stretches every duration 5x ----
+    public static double Num(string key) => (double)Application.Current.Resources.MergedDictionaries[2][key];
+    public static double Ms(string key) => Num(key) * (Prefs.SlowMo ? 5 : 1);
+
+    public static Microsoft.UI.Composition.CompositionEasingFunction EaseOut(Microsoft.UI.Composition.Compositor c) =>
+        c.CreateCubicBezierEasingFunction(new((float)Num("EaseOutX1"), (float)Num("EaseOutY1")), new((float)Num("EaseOutX2"), (float)Num("EaseOutY2")));
+
+    public static Microsoft.UI.Composition.CompositionEasingFunction EaseIn(Microsoft.UI.Composition.Compositor c) =>
+        c.CreateCubicBezierEasingFunction(new((float)Num("EaseInX1"), (float)Num("EaseInY1")), new((float)Num("EaseInX2"), (float)Num("EaseInY2")));
+
+    public static ElementTheme Theme => Prefs.ContrastPreview && !SystemContrast ? ElementTheme.Dark : Prefs.Theme switch
     {
         1 => ElementTheme.Light,
         2 => ElementTheme.Dark,
@@ -84,7 +123,7 @@ public static class Shell
     public static Brush Res(string key)
     {
         var themes = Application.Current.Resources.MergedDictionaries[1].ThemeDictionaries;
-        var dict = (ResourceDictionary)themes[Theme == ElementTheme.Dark ? "Dark" : "Light"];
+        var dict = (ResourceDictionary)themes[SystemContrast ? "HighContrast" : Theme == ElementTheme.Dark ? "Dark" : "Light"];
         return (Brush)dict[key];
     }
 
@@ -99,10 +138,12 @@ public static class Shell
     // Views are rebuilt on every design or theme change so token brushes and icon sets pick up the change.
     public static void Apply()
     {
-        Widget.ApplyLook(Theme, Prefs.Backdrop);
-        Dock.ApplyLook(Theme, Prefs.Backdrop);
+        ApplyContrastPreview();
+        int backdrop = Contrast ? 3 : Prefs.Backdrop; // contrast themes: no backdrop, system window colour
+        Widget.ApplyLook(Theme, backdrop);
+        Dock.ApplyLook(Theme, backdrop);
         Widget.SetView(new WidgetA());
-        Dock.SetView(Prefs.DockStyle switch { 0 => new DockStatus(), 1 => new DockNext(), _ => new DockCapture() });
+        Dock.SetView(new DockCapture());
         Bar?.Refresh();
     }
 

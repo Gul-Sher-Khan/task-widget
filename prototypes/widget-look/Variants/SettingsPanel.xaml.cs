@@ -19,7 +19,7 @@ public sealed partial class SettingsPanel : UserControl
     public string[] Themes => Shell.ThemeNames;
     public string[] Backdrops => Shell.BackdropNames;
     public Visibility TransparencyOff => new UISettings().AdvancedEffectsEnabled ? Visibility.Collapsed : Visibility.Visible;
-    public Brush TestBrush => P.TestResult.StartsWith("Connected") ? Shell.Res("OkBrush") : Shell.Res("PriHighBrush");
+    public Brush TestBrush => P.TestResult.StartsWith("Connected") ? Shell.Res("OkBrush") : Shell.Res("ErrorBrush");
 
     readonly HashSet<VirtualKey> held = new();
     string combo;

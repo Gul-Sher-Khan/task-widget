@@ -97,18 +97,18 @@ public class HostWindow : Window
     }
 
     // Fade/slide the content (the backdrop itself can't be faded on a WinUI 3 window).
-    public void AnimateContent(bool show, int ms, Action done = null)
+    public void AnimateContent(bool show, double ms, Action done = null)
     {
         var v = ElementCompositionPreview.GetElementVisual(Sizer);
         var c = v.Compositor;
-        var ease = show ? c.CreateCubicBezierEasingFunction(new(0.1f, 0.9f), new(0.2f, 1f))
-                        : c.CreateCubicBezierEasingFunction(new(0.4f, 0f), new(1f, 1f));
+        var ease = show ? Shell.EaseOut(c) : Shell.EaseIn(c);
+        float slide = -(float)Shell.Num("WidgetSlidePx");
         var batch = c.CreateScopedBatch(CompositionBatchTypes.Animation);
         var o = c.CreateScalarKeyFrameAnimation();
         o.InsertKeyFrame(0, show ? 0 : 1); o.InsertKeyFrame(1, show ? 1 : 0, ease);
         o.Duration = TimeSpan.FromMilliseconds(ms);
         var t = c.CreateScalarKeyFrameAnimation();
-        t.InsertKeyFrame(0, show ? -10 : 0); t.InsertKeyFrame(1, show ? 0 : -10, ease);
+        t.InsertKeyFrame(0, show ? slide : 0); t.InsertKeyFrame(1, show ? 0 : slide, ease);
         t.Duration = TimeSpan.FromMilliseconds(ms);
         v.StartAnimation("Opacity", o);
         v.StartAnimation("Translation.Y", t);
@@ -148,7 +148,7 @@ public sealed class WidgetWindow : HostWindow
     protected override void OnViewSize(double w, double h)
     {
         if (suppressSize || Hidden) return;
-        AnimateHeight(h, h > current ? 200 : 170, null);
+        AnimateHeight(h, Shell.Ms(h > current ? "WidgetGrowMs" : "WidgetShrinkMs"), null);
     }
 
     public void AnimateHeight(double to, double ms, Action done)
@@ -177,8 +177,8 @@ public sealed class WidgetWindow : HostWindow
     public void RollUp(Action done)
     {
         suppressSize = true;
-        AnimateContent(false, 120);
-        AnimateHeight(36, 190, () => { AppWindow.Hide(); Hidden = true; suppressSize = false; done?.Invoke(); });
+        AnimateContent(false, Shell.Ms("WidgetContentOutMs"));
+        AnimateHeight(36, Shell.Ms("WidgetRollUpMs"), () => { AppWindow.Hide(); Hidden = true; suppressSize = false; done?.Invoke(); });
     }
 
     public void RollDown()
@@ -188,8 +188,8 @@ public sealed class WidgetWindow : HostWindow
         double sc = Scale;
         SetClient(new SizeInt32((int)Math.Ceiling(View.Width * sc), (int)(current * sc)));
         AppWindow.Show(false);
-        AnimateContent(true, 260);
-        AnimateHeight(View.ActualHeight, 230, null);
+        AnimateContent(true, Shell.Ms("WidgetContentInMs"));
+        AnimateHeight(View.ActualHeight, Shell.Ms("WidgetUnrollMs"), null);
     }
 
     public void Raise()
@@ -238,13 +238,14 @@ public sealed class DockWindow : HostWindow
         v.CenterPoint = new Vector3((float)(View.ActualWidth / 2), 0, 0);
         var c = v.Compositor;
         var spring = c.CreateSpringVector3Animation();
-        spring.InitialValue = new Vector3(0.82f, 0.82f, 1);
+        float from = (float)Shell.Num("DockSpringFrom");
+        spring.InitialValue = new Vector3(from, from, 1);
         spring.FinalValue = Vector3.One;
-        spring.DampingRatio = 0.62f;
-        spring.Period = TimeSpan.FromMilliseconds(55);
+        spring.DampingRatio = (float)Shell.Num("DockSpringDamping");
+        spring.Period = TimeSpan.FromMilliseconds(Shell.Ms("DockSpringPeriodMs"));
         v.StartAnimation("Scale", spring);
-        AnimateContent(true, 220);
+        AnimateContent(true, Shell.Ms("DockInMs"));
     }
 
-    public void HideDock(Action done) => AnimateContent(false, 110, () => { AppWindow.Hide(); done?.Invoke(); });
+    public void HideDock(Action done) => AnimateContent(false, Shell.Ms("DockOutMs"), () => { AppWindow.Hide(); done?.Invoke(); });
 }

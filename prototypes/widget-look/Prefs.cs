@@ -1,13 +1,10 @@
-// PROTOTYPE: in-memory Settings plus the prototype-only design switches (icon sets, Dock design).
+// PROTOTYPE: in-memory Settings plus two prototype-only review switches.
 namespace Look;
 
 public sealed class Prefs : Bindable
 {
-    // ---- design switches (prototype only) ----
-    public static readonly string[] PriStyles = { "Signal bars", "Chevrons", "Alert badges" };
-    public static readonly string[] EffStyles = { "Pie clock", "Duration", "Symbols" };
-    public static readonly string[] DockStyles = { "Status pill", "Next up", "Capture bar" };
-    public int PriStyle, EffStyle, DockStyle;
+    // Review switches (prototype only): approximate a contrast theme; run every animation 5x slower.
+    public bool ContrastPreview, SlowMo;
 
     // ---- Settings ----
     int theme, backdrop, maxRows = 8, connection, model, provider;
