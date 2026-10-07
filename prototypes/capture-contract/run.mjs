@@ -1,8 +1,6 @@
-// PROTOTYPE — runs every Capture through one Connection and writes results/<run>.json.
+// PROTOTYPE — runs every Capture through ChatGPT and writes results/<run>.json.
 //
 //   node run.mjs chatgpt [--models gpt-5.6-sol,gpt-5.6-luna] [--runs N] [--only id,id]
-//   node run.mjs groq        (needs GROQ_API_KEY)       [--model openai/gpt-oss-20b]
-//   node run.mjs openrouter  (needs OPENROUTER_API_KEY) [--model openai/gpt-oss-20b]
 //   node run.mjs show        (print instructions + schema, no network)
 //
 // ChatGPT: opens your browser for Sign in with ChatGPT, keeps tokens in memory only,
@@ -26,7 +24,6 @@ const only = opt("only", "")?.split(",").filter(Boolean);
 const captures = only?.length ? CAPTURES.filter(c => only.includes(c.id)) : CAPTURES;
 const today = new Date();
 const INSTR = instructions(today);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 if (conn === "show") { console.log(INSTR, "\n\n", JSON.stringify(SCHEMA, null, 2)); process.exit(0); }
 
@@ -109,35 +106,6 @@ async function callChatGPT(session, model, capture) {
   return { text, usage };
 }
 
-// ---------- API key (Chat Completions) ----------
-const PRESETS = {
-  groq: { base: "https://api.groq.com/openai/v1", env: "GROQ_API_KEY",
-    extra: { reasoning_effort: "low" } },
-  openrouter: { base: "https://openrouter.ai/api/v1", env: "OPENROUTER_API_KEY",
-    extra: { reasoning: { effort: "low" } } },
-};
-
-async function callKey(p, key, model, capture) {
-  for (;;) {
-    const res = await fetch(`${p.base}/chat/completions`, {
-      method: "POST", signal: AbortSignal.timeout(30_000),
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        model, ...p.extra,
-        messages: [{ role: "system", content: INSTR }, { role: "user", content: capture }],
-        response_format: { type: "json_schema", json_schema: SCHEMA },
-      }),
-    });
-    if (res.status === 429) { // free-tier TPM: the prototype just waits (the app won't)
-      const wait = Number(res.headers.get("retry-after") ?? 10);
-      console.log(`  429, waiting ${wait}s`); await sleep(wait * 1000 + 500); continue;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const j = await res.json();
-    return { text: j.choices?.[0]?.message?.content ?? "", usage: j.usage };
-  }
-}
-
 // ---------- run ----------
 async function runAll(connection, model, call) {
   const items = [];
@@ -169,12 +137,7 @@ if (conn === "chatgpt") {
     for (const m of opt("models", "gpt-5.6-sol").split(","))
       await runAll("chatgpt", m, cap => callChatGPT(session, m, cap));
   } finally { await revoke(session); console.log("Tokens revoked."); }
-} else if (PRESETS[conn]) {
-  const p = PRESETS[conn], key = process.env[p.env];
-  if (!key) { console.error(`Set ${p.env} first.`); process.exit(1); }
-  const m = opt("model", "openai/gpt-oss-20b");
-  await runAll(conn, m, cap => callKey(p, key, m, cap));
 } else {
-  console.error("Usage: node run.mjs chatgpt|groq|openrouter|show [options]"); process.exit(1);
+  console.error("Usage: node run.mjs chatgpt|show [options]"); process.exit(1);
 }
 await import("./report.mjs");
