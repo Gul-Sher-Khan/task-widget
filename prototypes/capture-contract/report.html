@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Capture contract report</title>
+<style>
+:root{--bg:#fafafa;--fg:#1b1b1f;--muted:#6b6b75;--line:#e3e3e8;--card:#fff;--accent:#2563eb;--miss:#fff4e5;
+--high:#c62828;--medium:#b26a00;--low:#2e7d32}
+@media (prefers-color-scheme:dark){:root{--bg:#141417;--fg:#ececf1;--muted:#9a9aa6;--line:#2c2c33;--card:#1c1c21;--miss:#3a2a12;
+--high:#ef5350;--medium:#ffb74d;--low:#81c784}}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 "Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+main{max-width:1500px;margin:0 auto;padding:24px 16px}
+h1{font-size:22px;margin:0 0 4px}p.lead{color:var(--muted);margin:0 0 20px}
+details.instr{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:20px}
+details.instr pre{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,Consolas,monospace}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:300px}
+th,td{border-bottom:1px solid var(--line);padding:10px;vertical-align:top;text-align:left}
+th{position:sticky;top:0;background:var(--bg);font-weight:400}
+.colhead span,.meta,.muted,.want{color:var(--muted);font-size:12.5px}
+.cap{width:300px}.cap q{display:block;margin:4px 0 6px;font-style:italic}
+.probe{font-weight:600}.want{margin-top:4px}
+td.miss{background:var(--miss)}
+.task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-bottom:6px}
+.pri,.eff{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px;font-weight:600}
+.pri.high{color:var(--high)}.pri.medium{color:var(--medium)}.pri.low{color:var(--low)}.eff{color:var(--muted)}
+.title{font-weight:600}.details{color:var(--muted);margin-top:2px}
+.flag,.err{color:var(--high);font-size:12.5px;margin-top:2px}
+</style></head><body><main>
+<h1>Capture → Tasks contract</h1>
+<p class="lead">PROTOTYPE for issue #15. Each row is a dictated Capture; each column is a Connection + model. Orange cells got a different number of Tasks than expected. ⚑ marks mechanical rule breaks. Splitting and invented Details need your eye.</p>
+<details class="instr"><summary>Instructions sent (latest run)</summary><pre>(no runs yet)</pre></details>
+<div class="wrap"><table><thead><tr><th class="cap">Capture</th></tr></thead><tbody>
+<tr><td class="cap"><div class="probe">Basic split + deadline</div><q>Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk</q>
+<div class="want">Expect 3: Email Sarah the invoice / Refactor the auth module (Details: before Fri 9 Oct, High) / Buy milk (Low, Quick)</div></td></tr>
+<tr><td class="cap"><div class="probe">Thinking counts as a Task</div><q>think about whether we should move to Postgres</q>
+<div class="want">Expect 1: Decide whether to move to Postgres; Long or Short, Medium</div></td></tr>
+<tr><td class="cap"><div class="probe">Smallest possible Capture</div><q>Call mom</q>
+<div class="want">Expect 1: Call mom, Quick, Details empty</div></td></tr>
+<tr><td class="cap"><div class="probe">Spoken correction wins</div><q>Book a dentist appointment for Tuesday, no actually Thursday, and remind Ahmed about the design review.</q>
+<div class="want">Expect 2: Dentist on Thursday (not Tuesday) in Title or Details; Remind Ahmed about the design review</div></td></tr>
+<tr><td class="cap"><div class="probe">Several objects, one action</div><q>Pick up milk, eggs, bread and some coffee on the way home.</q>
+<div class="want">Expect 1: One Task: Pick up milk, eggs, bread and coffee</div></td></tr>
+<tr><td class="cap"><div class="probe">Nothing actionable → zero Tasks</div><q>Ugh, today was so long. The standup ran over again and I'm honestly exhausted.</q>
+<div class="want">Expect 0: Empty list</div></td></tr>
+<tr><td class="cap"><div class="probe">A fact with no ask → zero Tasks</div><q>The office wifi password is written on the back of the fridge.</q>
+<div class="want">Expect 0: Empty list (debatable: some would want 'Note the wifi password')</div></td></tr>
+<tr><td class="cap"><div class="probe">User lists steps of one job</div><q>I need to set up the CI pipeline for the widget repo, so that's writing the GitHub workflow, adding the ARM64 build and sorting out the signing certificate</q>
+<div class="want">Expect 1: Glossary says one Task; the steps the user said go in Details. Debatable: signing cert could stand alone</div></td></tr>
+<tr><td class="cap"><div class="probe">Explicit urgency word</div><q>Urgent, the production cert expires tonight, renew it</q>
+<div class="want">Expect 1: Renew the production cert; High; Details: expires tonight (Wed 7 Oct)</div></td></tr>
+<tr><td class="cap"><div class="probe">Explicit low urgency</div><q>Someday I'd like to properly learn Rust, no rush at all</q>
+<div class="want">Expect 1: Learn Rust; Low; Long</div></td></tr>
+<tr><td class="cap"><div class="probe">Someone waiting → High</div><q>Bilal has been waiting on my code review for two days now, I really need to get to that</q>
+<div class="want">Expect 1: Review Bilal's code; High; Short; Details: waiting two days</div></td></tr>
+<tr><td class="cap"><div class="probe">Language of the Capture</div><q>Ammi ko call karna hai aur bijli ka bill kal tak pay karna hai</q>
+<div class="want">Expect 2: Titles in Roman Urdu, e.g. 'Ammi ko call karna' / 'Bijli ka bill pay karna'; bill High with 'by Thu 8 Oct'</div></td></tr>
+<tr><td class="cap"><div class="probe">Question to self → check Task</div><q>Did I ever send the signed lease back to the landlord? Check that.</q>
+<div class="want">Expect 1: Check whether I sent the signed lease to the landlord; Quick</div></td></tr>
+<tr><td class="cap"><div class="probe">Same action, two places</div><q>Write the release notes for 0.3 and then post them on Discord and on Twitter</q>
+<div class="want">Expect 2: Write the release notes for 0.3 / Post them on Discord and Twitter (one Task, not two)</div></td></tr>
+<tr><td class="cap"><div class="probe">Calendar event vs. prep</div><q>Meeting with Hina on Monday at 3 to go over the Q4 budget, I need to prep the slides before that</q>
+<div class="want">Expect 1: Prep the Q4 budget slides; Details: for meeting with Hina Mon 12 Oct 3pm. The meeting itself is not a Task (debatable)</div></td></tr>
+<tr><td class="cap"><div class="probe">60-char Title limit</div><q>Reply to the email from the university admissions office asking for my transcript and the two recommendation letters</q>
+<div class="want">Expect 1: Title ≤60 chars, e.g. 'Reply to the admissions office email'; transcript + letters in Details</div></td></tr>
+<tr><td class="cap"><div class="probe">Long dictation, many items</div><q>Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.</q>
+<div class="want">Expect 5: Be home before 9 for the plumber (High, Thu 8 Oct) / Cancel Adobe subscription (renews 15 Oct) / Send Zain the API docs (High, blocked) / Look into lower docked memory (Low/Medium, Long) / Buy Fatima a birthday gift (Sat 17 Oct)</div></td></tr>
+<tr><td class="cap"><div class="probe">Transcription slip (Re-interpret material)</div><q>Email Sara the in voice for the Q3 retainer and cc Omar</q>
+<div class="want">Expect 1: Keep the user's words; a light fix to 'invoice' is fine. Details: Q3 retainer, cc Omar</div></td></tr>
+</tbody></table></div></main></body></html>
