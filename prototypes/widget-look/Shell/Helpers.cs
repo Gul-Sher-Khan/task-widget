@@ -16,6 +16,8 @@ public static class F
     public static Visibility VN(int n) => n > 0 ? Visibility.Visible : Visibility.Collapsed;
     public static Visibility Both(bool a, bool b) => a && b ? Visibility.Visible : Visibility.Collapsed;
     public static bool Not(bool b) => !b;
+    public static Visibility All3(bool a, bool b, bool c) => a && b && c ? Visibility.Visible : Visibility.Collapsed;
+    public static Visibility VS(string s) => string.IsNullOrEmpty(s) ? Visibility.Collapsed : Visibility.Visible;
 
     public static Brush Pri(Pri p) => Shell.Res($"Pri{p}Brush");
     public static Brush PriSoft(Pri p) => Shell.Res($"Pri{p}SoftBrush");
@@ -53,6 +55,8 @@ public static class F
     public static double Fade(bool b) => b ? 0.45 : 1;
     public static double DoneFade(bool done, bool striking) => done || striking ? 0.5 : 1;
     public static string Count(int n) => n.ToString();
+    public static string Plus(int n) => "+" + n;
+    public static double Pct(double f) => f * 100;
     public static string Plural(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
 
     // A fresh Geometry per call: one instance cannot be shared between two Paths.

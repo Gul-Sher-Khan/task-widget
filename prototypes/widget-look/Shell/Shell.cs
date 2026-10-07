@@ -16,16 +16,15 @@ namespace Look;
 public static class Shell
 {
     public static readonly Store Store = new();
+    public static readonly Prefs Prefs = new();
     public static WidgetWindow Widget;
     public static DockWindow Dock;
     public static ProtoBar Bar;
 
-    public static readonly string[] VariantNames = { "A · Fluent list", "B · Cards", "C · Next up" };
     public static readonly string[] ThemeNames = { "System", "Light", "Dark" };
     public static readonly string[] BackdropNames = { "Mica", "Mica Alt", "Acrylic", "Solid" };
-    public static int Variant, ThemeMode, Backdrop;
     public static bool Docked, Raised;
-    static bool sessionFromDock;
+    static bool sessionFromDock, applyQueued;
     static DispatcherQueue dq;
     static readonly UISettings ui = new();
 
@@ -33,11 +32,19 @@ public static class Shell
     {
         dq = DispatcherQueue.GetForCurrentThread();
         Store.Seed(9);
-        // Start-up overrides, handy for screenshots: LOOK_VARIANT 0-2, LOOK_THEME 0-2, LOOK_BACKDROP 0-3.
-        int.TryParse(Environment.GetEnvironmentVariable("LOOK_VARIANT"), out Variant);
-        int.TryParse(Environment.GetEnvironmentVariable("LOOK_THEME"), out ThemeMode);
-        int.TryParse(Environment.GetEnvironmentVariable("LOOK_BACKDROP"), out Backdrop);
-        ui.ColorValuesChanged += (_, _) => dq.TryEnqueue(() => { if (ThemeMode == 0) Apply(); });
+        // Start-up overrides, handy for screenshots: LOOK_DOCK 0-2, LOOK_PRI 0-2, LOOK_EFF 0-2, LOOK_THEME 0-2,
+        // LOOK_BACKDROP 0-3, LOOK_DOCKED=1, LOOK_BUSY=1, LOOK_SETTINGS=1.
+        Prefs.DockStyle = Env("LOOK_DOCK");
+        Prefs.PriStyle = Env("LOOK_PRI");
+        Prefs.EffStyle = Env("LOOK_EFF");
+        Prefs.Theme = Env("LOOK_THEME");
+        Prefs.Backdrop = Env("LOOK_BACKDROP");
+        Prefs.ShowSettings = Env("LOOK_SETTINGS") == 1;
+        ui.ColorValuesChanged += (_, _) => dq.TryEnqueue(() => { if (Prefs.Theme == 0) Apply(); });
+        Prefs.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(Prefs.Theme) or nameof(Prefs.Backdrop)) QueueApply();
+        };
 
         Widget = new WidgetWindow();
         Dock = new DockWindow();
@@ -56,15 +63,18 @@ public static class Shell
         Dock.Activate();
         Dock.AppWindow.Hide();
         After(50, () => Widget.Sink());
-        if (Environment.GetEnvironmentVariable("LOOK_BUSY") == "1") { Store.Capture("Email Bilal the contract, he's waiting today"); Store.Attention = true; }
-        if (Environment.GetEnvironmentVariable("LOOK_DOCKED") == "1") After(400, Collapse);
+        if (Env("LOOK_BUSY") == 1) { Store.Capture("Email Bilal the contract, he's waiting today"); Store.Attention = true; }
+        if (Env("LOOK_DOCKED") == 1) After(400, Collapse);
 
+        if (Env("LOOK_NOBAR") == 1) return;
         Bar = new ProtoBar();
         Bar.Activate();
         Bar.Refresh();
     }
 
-    public static ElementTheme Theme => ThemeMode switch
+    static int Env(string name) => int.TryParse(Environment.GetEnvironmentVariable(name), out int v) ? v : 0;
+
+    public static ElementTheme Theme => Prefs.Theme switch
     {
         1 => ElementTheme.Light,
         2 => ElementTheme.Dark,
@@ -78,13 +88,21 @@ public static class Shell
         return (Brush)dict[key];
     }
 
-    // Views are rebuilt on every variant or theme change so x:Bind'd token brushes pick up the new theme.
+    // A change made from inside a view (e.g. the Settings theme box) rebuilds the views, so defer it a tick.
+    static void QueueApply()
+    {
+        if (applyQueued) return;
+        applyQueued = true;
+        dq.TryEnqueue(() => { applyQueued = false; Apply(); });
+    }
+
+    // Views are rebuilt on every design or theme change so token brushes and icon sets pick up the change.
     public static void Apply()
     {
-        Widget.ApplyLook(Theme, Backdrop);
-        Dock.ApplyLook(Theme, Backdrop);
-        Widget.SetView(Variant switch { 0 => new WidgetA(), 1 => new WidgetB(), _ => new WidgetC() });
-        Dock.SetView(Variant switch { 0 => new DockA(), 1 => new DockB(), _ => new DockC() });
+        Widget.ApplyLook(Theme, Prefs.Backdrop);
+        Dock.ApplyLook(Theme, Prefs.Backdrop);
+        Widget.SetView(new WidgetA());
+        Dock.SetView(Prefs.DockStyle switch { 0 => new DockStatus(), 1 => new DockNext(), _ => new DockCapture() });
         Bar?.Refresh();
     }
 
@@ -106,7 +124,7 @@ public static class Shell
         Bar?.Refresh();
     }
 
-    public static void Expand()
+    public static void Expand(bool focusCapture = false)
     {
         if (!Docked) return;
         Docked = false;
@@ -115,12 +133,14 @@ public static class Shell
         Widget.RollDown();
         Raised = true;
         Widget.Raise();
+        if (focusCapture) { Prefs.ShowSettings = false; Store.ShowDone = false; FocusCapture(); }
         Bar?.Refresh();
     }
 
     // ---- hotkey session ----
     static void OnTap()
     {
+        if (Prefs.Recording) return; // the Settings hotkey recorder is listening
         if (Raised && Native.IsForeground(Widget.Hwnd))
         {
             CommitCapture();
@@ -133,6 +153,8 @@ public static class Shell
             Dock.HideDock(null);
             Widget.RollDown();
         }
+        Prefs.ShowSettings = false;
+        Store.ShowDone = false;
         Raised = true;
         Widget.Raise();
         FocusCapture();
@@ -142,8 +164,8 @@ public static class Shell
     public static void FocusCapture()
     {
         var box = Widget.WidgetView?.CaptureBox;
-        box?.Focus(FocusState.Programmatic);
-        if (box != null) box.SelectionStart = box.Text.Length;
+        if (box == null) return;
+        box.DispatcherQueue.TryEnqueue(() => { box.Focus(FocusState.Programmatic); box.SelectionStart = box.Text.Length; });
     }
 
     public static void CommitCapture()

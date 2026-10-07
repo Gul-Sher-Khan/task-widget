@@ -1,0 +1,42 @@
+<!-- PROTOTYPE · Dock "Capture bar": looks like a slim input; clicking it opens the Widget with the Capture box focused.
+     Priority counts sit at the right. While a Capture is processing, the prompt becomes "Interpreting…". -->
+<UserControl
+    x:Class="Look.DockCapture"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Look">
+    <Grid Height="44" Width="380" Background="Transparent">
+        <Grid Padding="14,0,16,0" ColumnSpacing="10" VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid Width="18" Height="18">
+                <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                          Visibility="{x:Bind local:F.NV(S.IsProcessing), Mode=OneWay}" />
+                <ProgressRing Width="16" Height="16" IsActive="{x:Bind S.IsProcessing, Mode=OneWay}" Visibility="{x:Bind S.IsProcessing, Mode=OneWay}" />
+            </Grid>
+            <TextBlock Grid.Column="1" Text="Capture a thought…" FontSize="13.5" Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center"
+                       Visibility="{x:Bind local:F.NV(S.IsProcessing), Mode=OneWay}" />
+            <TextBlock Grid.Column="1" Text="Interpreting…" FontSize="13.5" Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center"
+                       Visibility="{x:Bind S.IsProcessing, Mode=OneWay}" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="5" Visibility="{x:Bind local:F.VN(S.CountHigh), Mode=OneWay}">
+                    <local:PriIcon Priority="High" />
+                    <TextBlock Text="{x:Bind local:F.Count(S.CountHigh), Mode=OneWay}" FontSize="13" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="5" Visibility="{x:Bind local:F.VN(S.CountMedium), Mode=OneWay}">
+                    <local:PriIcon Priority="Medium" />
+                    <TextBlock Text="{x:Bind local:F.Count(S.CountMedium), Mode=OneWay}" FontSize="13" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="5" Visibility="{x:Bind local:F.VN(S.CountLow), Mode=OneWay}">
+                    <local:PriIcon Priority="Low" />
+                    <TextBlock Text="{x:Bind local:F.Count(S.CountLow), Mode=OneWay}" FontSize="13" FontWeight="SemiBold" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+        <Ellipse Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                 Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind S.Attention, Mode=OneWay}" />
+    </Grid>
+</UserControl>

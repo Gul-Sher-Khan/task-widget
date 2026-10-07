@@ -17,6 +17,8 @@
             <SolidColorBrush x:Key="HairlineBrush" Color="#1AFFFFFF" />
             <SolidColorBrush x:Key="MutedTextBrush" Color="#99FFFFFF" />
             <SolidColorBrush x:Key="FaintTextBrush" Color="#66FFFFFF" />
+            <SolidColorBrush x:Key="OnPriBrush" Color="#1B1B1F" />
+            <SolidColorBrush x:Key="OkBrush" Color="#6CCB5F" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
             <SolidColorBrush x:Key="PriHighBrush" Color="#D13438" />
@@ -31,6 +33,8 @@
             <SolidColorBrush x:Key="HairlineBrush" Color="#14000000" />
             <SolidColorBrush x:Key="MutedTextBrush" Color="#99000000" />
             <SolidColorBrush x:Key="FaintTextBrush" Color="#66000000" />
+            <SolidColorBrush x:Key="OnPriBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="OkBrush" Color="#0F7B0F" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

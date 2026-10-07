@@ -1,0 +1,168 @@
+<!-- PROTOTYPE · Settings, shown inside the Widget in place of the list. Connection follows "LLM provider strategy and
+     model choice": exactly one active Connection, the other's details kept; ChatGPT model override; Groq / OpenRouter /
+     Custom presets for an API key. Sign-in, key tests and the hotkey recorder are faked. -->
+<UserControl
+    x:Class="Look.SettingsPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Look">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+            <Setter Property="Margin" Value="4,14,0,6" />
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12,10,12,12" />
+        </Style>
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{ThemeResource FaintTextBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer MaxHeight="520" Padding="12,0,12,4" VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="0,0,0,8">
+
+            <!-- Connection -->
+            <TextBlock Text="Connection" Style="{StaticResource Section}" Margin="4,4,0,6" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <SelectorBar x:Name="ConnBar" SelectionChanged="ConnBar_SelectionChanged" Margin="-4,-4,0,0">
+                        <SelectorBarItem Text="ChatGPT" />
+                        <SelectorBarItem Text="API key" />
+                    </SelectorBar>
+
+                    <!-- ChatGPT, signed in -->
+                    <StackPanel Spacing="10" Visibility="{x:Bind local:F.Both(P.IsChatGpt, P.SignedIn), Mode=OneWay}">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="32" Height="32">
+                                <Ellipse Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="G" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Grid>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind P.Account}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{x:Bind P.Plan}" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Sign out" Click="SignOut_Click" Padding="10,4,10,5" FontSize="12.5" />
+                        </Grid>
+                        <ComboBox Header="Model" ItemsSource="{x:Bind Models}" SelectedIndex="{x:Bind P.Model, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch" FontSize="13" />
+                        <TextBlock Style="{StaticResource Caption}" Text="Captures use your ChatGPT plan. Automatic picks the fastest model your plan offers." />
+                    </StackPanel>
+
+                    <!-- ChatGPT, signed out -->
+                    <StackPanel Spacing="8" Visibility="{x:Bind local:F.Both(P.IsChatGpt, P.SignedOut), Mode=OneWay}">
+                        <TextBlock Text="Not signed in" FontSize="13" />
+                        <Button Click="SignIn_Click" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,7,12,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressRing Width="14" Height="14" IsActive="{x:Bind P.Testing, Mode=OneWay}" Visibility="{x:Bind P.Testing, Mode=OneWay}"
+                                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                <TextBlock Text="Sign in with ChatGPT" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Style="{StaticResource Caption}" Text="Opens your browser. Task Widget never sees your password." />
+                    </StackPanel>
+
+                    <!-- API key -->
+                    <StackPanel Spacing="10" Visibility="{x:Bind P.IsApiKey, Mode=OneWay}">
+                        <ComboBox Header="Provider" ItemsSource="{x:Bind Providers}" SelectedIndex="{x:Bind P.Provider, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch" FontSize="13" />
+                        <TextBox Header="Base URL" Text="{x:Bind P.BaseUrl, Mode=TwoWay}" IsEnabled="{x:Bind P.IsCustom, Mode=OneWay}" FontSize="13" />
+                        <PasswordBox Header="API key" Password="{x:Bind P.ApiKey, Mode=TwoWay}" PlaceholderText="Paste your key"
+                                     PasswordRevealMode="Peek" FontSize="13" />
+                        <TextBox Header="Model" Text="{x:Bind P.KeyModel, Mode=TwoWay}" FontSize="13" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Click="Test_Click" Padding="12,5,12,6" FontSize="12.5">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ProgressRing Width="14" Height="14" IsActive="{x:Bind P.Testing, Mode=OneWay}" Visibility="{x:Bind P.Testing, Mode=OneWay}" />
+                                    <TextBlock Text="Test connection" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="{x:Bind P.TestResult, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
+                                       Foreground="{x:Bind TestBrush, Mode=OneWay}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Caption}" Text="One Connection is used at a time. Switching keeps the other's details." />
+                </StackPanel>
+            </Border>
+
+            <!-- Hotkey -->
+            <TextBlock Text="Hotkey" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="8">
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Open and add a Capture" FontSize="13" />
+                            <TextBlock Text="Tap to open, tap again to add" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
+                        </StackPanel>
+                        <Button HorizontalAlignment="Right" Click="Record_Click" Padding="8,4,8,5" MinWidth="120" x:Name="RecordButton">
+                            <Grid>
+                                <TextBlock Text="{x:Bind P.Hotkey, Mode=OneWay}" FontSize="12.5" FontWeight="SemiBold"
+                                           Visibility="{x:Bind P.NotRecording, Mode=OneWay}" />
+                                <TextBlock Text="Press keys…" FontSize="12.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                           Visibility="{x:Bind P.Recording, Mode=OneWay}" />
+                            </Grid>
+                        </Button>
+                    </Grid>
+                    <TextBlock Style="{StaticResource Caption}"
+                               Text="A modifier pair (like Ctrl + Shift) fires on a tap: press both, release, no other key. Some keyboards use Ctrl + Shift to switch language." />
+                </StackPanel>
+            </Border>
+
+            <!-- Appearance -->
+            <TextBlock Text="Appearance" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <ComboBox Header="Theme" ItemsSource="{x:Bind Themes}" SelectedIndex="{x:Bind P.Theme, Mode=TwoWay}" HorizontalAlignment="Stretch" FontSize="13" />
+                    <ComboBox Header="Backdrop" ItemsSource="{x:Bind Backdrops}" SelectedIndex="{x:Bind P.Backdrop, Mode=TwoWay}" HorizontalAlignment="Stretch" FontSize="13" />
+                    <TextBlock Style="{StaticResource Caption}" Visibility="{x:Bind TransparencyOff}"
+                               Text="Windows transparency effects are off, so every backdrop shows as Solid." />
+                </StackPanel>
+            </Border>
+
+            <!-- Widget -->
+            <TextBlock Text="Widget" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="6">
+                    <Grid>
+                        <TextBlock Text="Rows before scrolling" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Bind local:F.Count(P.MaxRows), Mode=OneWay}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Slider Minimum="4" Maximum="15" StepFrequency="1" Value="{x:Bind P.MaxRowsD, Mode=TwoWay}" />
+                    <Grid Margin="0,4,0,0">
+                        <TextBlock Text="Start with Windows" FontSize="13" VerticalAlignment="Center" />
+                        <ToggleSwitch IsOn="{x:Bind P.LaunchAtLogin, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0"
+                                      HorizontalAlignment="Right" Margin="0,0,-12,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- About -->
+            <TextBlock Text="About" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Task Widget 0.1.0" FontSize="13" />
+                        <TextBlock Text="Open source, MIT" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
+                    </StackPanel>
+                    <HyperlinkButton HorizontalAlignment="Right" Content="GitHub" FontSize="12.5"
+                                     NavigateUri="https://github.com/Gul-Sher-Khan/task-widget" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

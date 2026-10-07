@@ -77,11 +77,16 @@ public sealed class Store : Bindable
     public int CountLow => Open.Count(t => !t.IsPending && t.Priority == Pri.Low);
     public int CountOpen => Open.Count(t => !t.IsPending);
     public bool AllClear => CountOpen == 0;
+    // Prototype simplification: every Done Task counts as done today.
+    public int DoneToday => Done.Count;
+    public double DayProgress => DoneToday + CountOpen == 0 ? 0 : (double)DoneToday / (DoneToday + CountOpen);
+    public TaskVm Top => Open.FirstOrDefault(t => !t.IsPending);
+    public int OthersCount => System.Math.Max(0, CountOpen - 1);
 
     public Store()
     {
         Open.CollectionChanged += (_, _) => Refresh();
-        Done.CollectionChanged += (_, _) => { foreach (var t in Done) t.IsFirst = false; Raise(nameof(Done)); };
+        Done.CollectionChanged += (_, _) => { foreach (var t in Done) t.IsFirst = false; Raise(nameof(Done)); Raise(nameof(DoneToday)); Raise(nameof(DayProgress)); };
     }
 
     void Refresh()
@@ -89,7 +94,7 @@ public sealed class Store : Bindable
         var firstReal = Open.FirstOrDefault(t => !t.IsPending);
         foreach (var t in Open) t.IsFirst = t == firstReal;
         Raise(nameof(CountHigh)); Raise(nameof(CountMedium)); Raise(nameof(CountLow));
-        Raise(nameof(CountOpen)); Raise(nameof(AllClear));
+        Raise(nameof(CountOpen)); Raise(nameof(AllClear)); Raise(nameof(DayProgress)); Raise(nameof(Top)); Raise(nameof(OthersCount));
     }
 
     // ---- ranking & insertion ----

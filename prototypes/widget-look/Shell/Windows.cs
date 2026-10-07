@@ -18,7 +18,7 @@ namespace Look;
 public interface IWidgetView { TextBox CaptureBox { get; } }
 
 public enum DockSpot { TopCenter, TopRight }
-public interface IDockView { DockSpot Spot { get; } double TopOffset { get; } }
+public interface IDockView { DockSpot Spot { get; } double TopOffset { get; } bool OpensCapture { get; } }
 
 public class HostWindow : Window
 {
@@ -210,7 +210,7 @@ public sealed class DockWindow : HostWindow
 {
     public DockWindow() : base(noActivate: true)
     {
-        Root.PointerPressed += (_, _) => Shell.Expand();
+        Root.PointerPressed += (_, _) => Shell.Expand((View as IDockView)?.OpensCapture ?? false);
     }
 
     public override void SetView(FrameworkElement view)

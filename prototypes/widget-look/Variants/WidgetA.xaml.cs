@@ -8,6 +8,7 @@ namespace Look;
 public sealed partial class WidgetA : UserControl, IWidgetView
 {
     public Store S => Shell.Store;
+    public Prefs P => Shell.Prefs;
     public TextBox CaptureBox => Capture;
 
     public WidgetA()
@@ -20,6 +21,7 @@ public sealed partial class WidgetA : UserControl, IWidgetView
     void Resort_Click(object s, RoutedEventArgs e) => S.Resort();
     void Done_Click(object s, RoutedEventArgs e) => S.ShowDone = !S.ShowDone;
     void Collapse_Click(object s, RoutedEventArgs e) => Shell.Collapse();
+    void Settings_Click(object s, RoutedEventArgs e) => P.ShowSettings = !P.ShowSettings;
     void Check_Click(object s, RoutedEventArgs e) => RowKit.Check(s);
     void Pri_Click(object s, RoutedEventArgs e) => RowKit.Pri(s);
     void Eff_Click(object s, RoutedEventArgs e) => RowKit.Eff(s);
