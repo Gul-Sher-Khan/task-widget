@@ -1,0 +1,2859 @@
+{
+  "connection": "chatgpt",
+  "model": "gpt-5.6-sol",
+  "contract": "v1",
+  "startedAt": "2026-10-07T17:10:44.899Z",
+  "instructions": "You turn one dictated note (a \"Capture\") into tasks for the user's personal to-do list.\n\nThe Capture was dictated, so it may contain filler, false starts, self-corrections and transcription slips. When the user corrects themselves (\"Tuesday, no, Thursday\"), keep only the correction. Ignore filler.\n\nSplitting\n- Make one task per action the user would tick off on its own.\n- Never break an action into steps or sub-tasks, even if the user lists the steps. Put steps they said into details instead.\n- One action with several objects stays one task (\"Buy milk, eggs and bread\").\n- Thinking, deciding or checking something counts as an action (\"Decide whether to move to Postgres\").\n- Drop chatter, feelings, and facts that ask for no action. If nothing in the Capture asks for action, return an empty tasks list.\n- Keep the tasks in the order they were said.\n\ntitle\n- One line, at most 60 characters, starting with a verb in the imperative (\"Email Sarah the invoice\").\n- Use the Capture's own words wherever you can. Add nothing that the Capture doesn't say.\n- Write it in the language of the Capture. Sentence case, no full stop at the end.\n\ndetails\n- Only context stated in the Capture that the title leaves out: who, deadlines, where, why, amounts, steps the user listed.\n- Never invent steps, advice or anything else the user didn't say. If there is nothing to add, use \"\".\n- Turn relative dates into a weekday and date, using today's date (\"before Friday\" becomes \"Before Friday 9 Oct\").\n\npriority\n- high: something bad happens or someone is waiting if it isn't done soon (a deadline in the next 3 days, someone blocked or waiting, money, health or legal trouble).\n- medium: it matters, but nothing breaks this week.\n- low: nice to do; nothing happens if it slips.\n- Words the user says about urgency (\"urgent\", \"no rush\", \"whenever\") win over your own judgement. With no signal at all, use medium.\n\neffort (how long the action itself takes)\n- quick: 15 minutes or less (a call, a short message, a purchase on the way).\n- short: up to an hour.\n- long: more than an hour (writing, building, refactoring, studying).\n\nToday is Wednesday 7 Oct 2026.",
+  "items": [
+    {
+      "id": "three-mixed",
+      "run": 1,
+      "capture": "Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sarah the invoice\",\"details\":\"\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Refactor the auth module\",\"details\":\"Before Friday 9 Oct\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Buy milk\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_093702440bf2625d016ac67c766ed487d0b0177119aa14a71e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "rs_093702440bf2625d016ac67c782cd887d084b043d47911b182": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 87
+            },
+            "msg_093702440bf2625d016ac67c7a45a887d0a89216180765f6d6": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 74
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 74
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 601,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 161,
+        "output_tokens_details": {
+          "reasoning_tokens": 87
+        },
+        "total_tokens": 762
+      },
+      "tasks": [
+        {
+          "title": "Email Sarah the invoice",
+          "details": "",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Refactor the auth module",
+          "details": "Before Friday 9 Oct",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Buy milk",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 8133
+    },
+    {
+      "id": "decide",
+      "run": 1,
+      "capture": "think about whether we should move to Postgres",
+      "raw": "{\"tasks\":[{\"title\":\"Decide whether to move to Postgres\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_02404a2671c12ed3016ac67c7e0bcc87d0876efd6103b1266c": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 13,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 13,
+              "output_tokens": 0
+            },
+            "msg_02404a2671c12ed3016ac67c7f093487d09487ab53c36592ff": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 35
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 35
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 589,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 35,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 624
+      },
+      "tasks": [
+        {
+          "title": "Decide whether to move to Postgres",
+          "details": "",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 4290
+    },
+    {
+      "id": "call-mom",
+      "run": 1,
+      "capture": "Call mom",
+      "raw": "{\"tasks\":[{\"title\":\"Call mom\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_03b185e47c3933b8016ac67c81702c87d0a0685ae393ce0794": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 6,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 6,
+              "output_tokens": 0
+            },
+            "msg_03b185e47c3933b8016ac67c82d06c87d0b5de8286ace5ff11": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 29
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 29
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 582,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 29,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 611
+      },
+      "tasks": [
+        {
+          "title": "Call mom",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4313
+    },
+    {
+      "id": "self-correction",
+      "run": 1,
+      "capture": "Book a dentist appointment for Tuesday, no actually Thursday, and remind Ahmed about the design review.",
+      "raw": "{\"tasks\":[{\"title\":\"Book a dentist appointment\",\"details\":\"For Thursday 8 Oct\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Remind Ahmed about the design review\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0366d9f58b599555016ac67c86cd6487d09bb79078c4250813": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 23,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 23,
+              "output_tokens": 0
+            },
+            "rs_0366d9f58b599555016ac67c87942c87d090018f70b6175ac7": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 58
+            },
+            "msg_0366d9f58b599555016ac67c891f4c87d0b5b6974ad4f318bf": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 60
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 60
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 118,
+        "output_tokens_details": {
+          "reasoning_tokens": 58
+        },
+        "total_tokens": 717
+      },
+      "tasks": [
+        {
+          "title": "Book a dentist appointment",
+          "details": "For Thursday 8 Oct",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Remind Ahmed about the design review",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 5993
+    },
+    {
+      "id": "one-errand",
+      "run": 1,
+      "capture": "Pick up milk, eggs, bread and some coffee on the way home.",
+      "raw": "{\"tasks\":[{\"title\":\"Pick up milk, eggs, bread and coffee\",\"details\":\"On the way home\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_09ba110381aa59a3016ac67c8b72ac87d08b857079e0bb8438": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 19,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 19,
+              "output_tokens": 0
+            },
+            "msg_09ba110381aa59a3016ac67c8c5b6487d08479e20f2ff86006": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 41
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 41
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 595,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 41,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 636
+      },
+      "tasks": [
+        {
+          "title": "Pick up milk, eggs, bread and coffee",
+          "details": "On the way home",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3139
+    },
+    {
+      "id": "chatter",
+      "run": 1,
+      "capture": "Ugh, today was so long. The standup ran over again and I'm honestly exhausted.",
+      "raw": "{\"tasks\":[]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0b21952f79bc1ae6016ac67c8edea887d08efe319d4718b57d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 23,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 23,
+              "output_tokens": 0
+            },
+            "msg_0b21952f79bc1ae6016ac67c8fe90887d0b158b2194c660d4e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 12
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 12
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 12,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 611
+      },
+      "tasks": [],
+      "ms": 3155
+    },
+    {
+      "id": "fact",
+      "run": 1,
+      "capture": "The office wifi password is written on the back of the fridge.",
+      "raw": "{\"tasks\":[]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_02ecb400d1876907016ac67c91d38487d0a2513d38e776e8eb": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 17,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 17,
+              "output_tokens": 0
+            },
+            "msg_02ecb400d1876907016ac67c92e6b487d0aa39bdf86446abb0": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 12
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 12
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 593,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 12,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 605
+      },
+      "tasks": [],
+      "ms": 2838
+    },
+    {
+      "id": "steps-said",
+      "run": 1,
+      "capture": "I need to set up the CI pipeline for the widget repo, so that's writing the GitHub workflow, adding the ARM64 build and sorting out the signing certificate",
+      "raw": "{\"tasks\":[{\"title\":\"Set up the CI pipeline for the widget repo\",\"details\":\"Write the GitHub workflow, add the ARM64 build and sort out the signing certificate.\",\"priority\":\"medium\",\"effort\":\"long\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0ace371f733c81bb016ac67c94894087d0b787354921bdcd91": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 36,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 36,
+              "output_tokens": 0
+            },
+            "rs_0ace371f733c81bb016ac67c96e92887d0826665ee4692b622": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 19
+            },
+            "msg_0ace371f733c81bb016ac67c975fcc87d084e6ba1b985e3bf7": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 56
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 56
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 612,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 75,
+        "output_tokens_details": {
+          "reasoning_tokens": 19
+        },
+        "total_tokens": 687
+      },
+      "tasks": [
+        {
+          "title": "Set up the CI pipeline for the widget repo",
+          "details": "Write the GitHub workflow, add the ARM64 build and sort out the signing certificate.",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        }
+      ],
+      "ms": 5508
+    },
+    {
+      "id": "urgent",
+      "run": 1,
+      "capture": "Urgent, the production cert expires tonight, renew it",
+      "raw": "{\"tasks\":[{\"title\":\"Renew the production cert\",\"details\":\"Expires tonight, Wednesday 7 Oct 2026\",\"priority\":\"high\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_034588f643521463016ac67c9a2b3887d0bbd9e95763b7bf9a": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 15,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 15,
+              "output_tokens": 0
+            },
+            "msg_034588f643521463016ac67c9b708c87d08aef28093dcac803": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 42
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 42
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 591,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 42,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 633
+      },
+      "tasks": [
+        {
+          "title": "Renew the production cert",
+          "details": "Expires tonight, Wednesday 7 Oct 2026",
+          "priority": "high",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 3708
+    },
+    {
+      "id": "no-rush",
+      "run": 1,
+      "capture": "Someday I'd like to properly learn Rust, no rush at all",
+      "raw": "{\"tasks\":[{\"title\":\"Learn Rust\",\"details\":\"Someday; properly\",\"priority\":\"low\",\"effort\":\"long\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0f67e89c496d5747016ac67c9dd28487d0aa4ebafbbed04d20": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 17,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 17,
+              "output_tokens": 0
+            },
+            "msg_0f67e89c496d5747016ac67c9f20f887d0af36fbdd225bfb82": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 34
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 34
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 593,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 34,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 627
+      },
+      "tasks": [
+        {
+          "title": "Learn Rust",
+          "details": "Someday; properly",
+          "priority": "low",
+          "effort": "long",
+          "issues": []
+        }
+      ],
+      "ms": 3417
+    },
+    {
+      "id": "someone-waiting",
+      "run": 1,
+      "capture": "Bilal has been waiting on my code review for two days now, I really need to get to that",
+      "raw": "{\"tasks\":[{\"title\":\"Review Bilal's code\",\"details\":\"Bilal has been waiting for two days.\",\"priority\":\"high\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0eaa09ae6bd35f94016ac67ca120a887d0964a46625c53cf64": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "msg_0eaa09ae6bd35f94016ac67ca23cd487d0818d4bdbeb19c55a": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 41
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 41
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 601,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 41,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 642
+      },
+      "tasks": [
+        {
+          "title": "Review Bilal's code",
+          "details": "Bilal has been waiting for two days.",
+          "priority": "high",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 3228
+    },
+    {
+      "id": "roman-urdu",
+      "run": 1,
+      "capture": "Ammi ko call karna hai aur bijli ka bill kal tak pay karna hai",
+      "raw": "{\"tasks\":[{\"title\":\"Ammi ko call karo\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Bijli ka bill pay karo\",\"details\":\"Thursday 8 Oct 2026 tak\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0916c82c7dc910d7016ac67ca4824087d08af9f31670e7ac9b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 22,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 22,
+              "output_tokens": 0
+            },
+            "rs_0916c82c7dc910d7016ac67ca5c5d087d0b61c35b10142d0f8": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 39
+            },
+            "msg_0916c82c7dc910d7016ac67ca6bb8487d08af1b79a35817065": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 63
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 63
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 598,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 102,
+        "output_tokens_details": {
+          "reasoning_tokens": 39
+        },
+        "total_tokens": 700
+      },
+      "tasks": [
+        {
+          "title": "Ammi ko call karo",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Bijli ka bill pay karo",
+          "details": "Thursday 8 Oct 2026 tak",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4699
+    },
+    {
+      "id": "self-question",
+      "run": 1,
+      "capture": "Did I ever send the signed lease back to the landlord? Check that.",
+      "raw": "{\"tasks\":[{\"title\":\"Check whether I sent the signed lease back\",\"details\":\"To the landlord\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0cda57c203fdd0a9016ac67ca9526087d0b4ddb4ad56e839a2": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 19,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 19,
+              "output_tokens": 0
+            },
+            "msg_0cda57c203fdd0a9016ac67cab56dc87d091d04cc66b8133a1": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 39
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 39
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 595,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 39,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 634
+      },
+      "tasks": [
+        {
+          "title": "Check whether I sent the signed lease back",
+          "details": "To the landlord",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4390
+    },
+    {
+      "id": "two-channels",
+      "run": 1,
+      "capture": "Write the release notes for 0.3 and then post them on Discord and on Twitter",
+      "raw": "{\"tasks\":[{\"title\":\"Write the release notes for 0.3\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"long\"},{\"title\":\"Post the release notes on Discord and Twitter\",\"details\":\"After writing the release notes for 0.3\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0a5f7ec48e2984c1016ac67cad8d4c87d0a6569aaa78476c52": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 22,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 22,
+              "output_tokens": 0
+            },
+            "rs_0a5f7ec48e2984c1016ac67cae7aec87d0b740f83ebec88891": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 92
+            },
+            "msg_0a5f7ec48e2984c1016ac67cb048cc87d0a7c78769f13abd26": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 71
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 71
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 598,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 163,
+        "output_tokens_details": {
+          "reasoning_tokens": 92
+        },
+        "total_tokens": 761
+      },
+      "tasks": [
+        {
+          "title": "Write the release notes for 0.3",
+          "details": "",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Post the release notes on Discord and Twitter",
+          "details": "After writing the release notes for 0.3",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 5404
+    },
+    {
+      "id": "meeting",
+      "run": 1,
+      "capture": "Meeting with Hina on Monday at 3 to go over the Q4 budget, I need to prep the slides before that",
+      "raw": "{\"tasks\":[{\"title\":\"Meet Hina to go over the Q4 budget\",\"details\":\"Monday 12 Oct at 3pm\",\"priority\":\"medium\",\"effort\":\"short\"},{\"title\":\"Prep the Q4 budget slides\",\"details\":\"Before Monday 12 Oct at 3pm for the meeting with Hina\",\"priority\":\"medium\",\"effort\":\"long\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_002ac601dc117a8c016ac67cb2dbbc87d089300855a30679e8": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 29,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 29,
+              "output_tokens": 0
+            },
+            "rs_002ac601dc117a8c016ac67cb3a11887d0b85bfb7a03bc0228": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 140
+            },
+            "msg_002ac601dc117a8c016ac67cb6921487d096b88d63bbca6dc7": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 84
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 84
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 605,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 224,
+        "output_tokens_details": {
+          "reasoning_tokens": 140
+        },
+        "total_tokens": 829
+      },
+      "tasks": [
+        {
+          "title": "Meet Hina to go over the Q4 budget",
+          "details": "Monday 12 Oct at 3pm",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Prep the Q4 budget slides",
+          "details": "Before Monday 12 Oct at 3pm for the meeting with Hina",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        }
+      ],
+      "ms": 6221
+    },
+    {
+      "id": "long-title",
+      "run": 1,
+      "capture": "Reply to the email from the university admissions office asking for my transcript and the two recommendation letters",
+      "raw": "{\"tasks\":[{\"title\":\"Reply to the university admissions office\",\"details\":\"Send the transcript and two recommendation letters they requested.\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_083196d9622f949f016ac67cb95aec87d0ad3d5fd43980b0bf": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 22,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 22,
+              "output_tokens": 0
+            },
+            "msg_083196d9622f949f016ac67cbaea1c87d08586b52a061585fd": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 43
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 43
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 598,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 43,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 641
+      },
+      "tasks": [
+        {
+          "title": "Reply to the university admissions office",
+          "details": "Send the transcript and two recommendation letters they requested.",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4003
+    },
+    {
+      "id": "ramble",
+      "run": 1,
+      "capture": "Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.",
+      "raw": "{\"tasks\":[{\"title\":\"Be home for the plumber\",\"details\":\"Tomorrow morning, Thursday 8 Oct, before 9:00\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Cancel the Adobe subscription\",\"details\":\"It renews on Thursday 15 Oct\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Send Zain the API docs\",\"details\":\"Zain is blocked on them\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Look into whether the widget can use less memory\",\"details\":\"When it’s docked\",\"priority\":\"medium\",\"effort\":\"long\"},{\"title\":\"Buy a birthday gift for Fatima\",\"details\":\"Her birthday is Saturday 17 Oct\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0e7bae7f7e8b6489016ac67cbd356887d094bdf60449e7deae": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 101,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 101,
+              "output_tokens": 0
+            },
+            "rs_0e7bae7f7e8b6489016ac67cbed5f487d0af10ba025d1296dc": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 126
+            },
+            "msg_0e7bae7f7e8b6489016ac67cc1be9087d0bba7e219846db9b4": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 160
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 160
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 677,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 286,
+        "output_tokens_details": {
+          "reasoning_tokens": 126
+        },
+        "total_tokens": 963
+      },
+      "tasks": [
+        {
+          "title": "Be home for the plumber",
+          "details": "Tomorrow morning, Thursday 8 Oct, before 9:00",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Cancel the Adobe subscription",
+          "details": "It renews on Thursday 15 Oct",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Send Zain the API docs",
+          "details": "Zain is blocked on them",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Look into whether the widget can use less memory",
+          "details": "When it’s docked",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Buy a birthday gift for Fatima",
+          "details": "Her birthday is Saturday 17 Oct",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 8349
+    },
+    {
+      "id": "misheard",
+      "run": 1,
+      "capture": "Email Sara the in voice for the Q3 retainer and cc Omar",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sara the invoice for the Q3 retainer\",\"details\":\"Cc Omar\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0198923581c20272016ac67cc569c887d0a45d964dbc43a083": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 18,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 18,
+              "output_tokens": 0
+            },
+            "msg_0198923581c20272016ac67cc6703487d0a7ec6b67501aa367": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 40
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 40
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 594,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 40,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 634
+      },
+      "tasks": [
+        {
+          "title": "Email Sara the invoice for the Q3 retainer",
+          "details": "Cc Omar",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3084
+    },
+    {
+      "id": "three-mixed",
+      "run": 2,
+      "capture": "Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sarah the invoice\",\"details\":\"\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Refactor the auth module\",\"details\":\"Before Friday 9 Oct\",\"priority\":\"high\",\"effort\":\"long\"},{\"title\":\"Buy milk\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0527712858545424016ac67cc8a59087d0a36fef63e254f81e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "msg_0527712858545424016ac67cca7b1887d0b0ff324440c3ef4c": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 72
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 72
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 601,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 72,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 673
+      },
+      "tasks": [
+        {
+          "title": "Email Sarah the invoice",
+          "details": "",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Refactor the auth module",
+          "details": "Before Friday 9 Oct",
+          "priority": "high",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Buy milk",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4569
+    },
+    {
+      "id": "decide",
+      "run": 2,
+      "capture": "think about whether we should move to Postgres",
+      "raw": "{\"tasks\":[{\"title\":\"Decide whether to move to Postgres\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0c95cb01ef8e4f7d016ac67ccd568487d0b10e3e86fffff765": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 13,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 13,
+              "output_tokens": 0
+            },
+            "msg_0c95cb01ef8e4f7d016ac67cce83f487d09c3719da9af30e1a": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 35
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 35
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 589,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 35,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 624
+      },
+      "tasks": [
+        {
+          "title": "Decide whether to move to Postgres",
+          "details": "",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 3537
+    },
+    {
+      "id": "call-mom",
+      "run": 2,
+      "capture": "Call mom",
+      "raw": "{\"tasks\":[{\"title\":\"Call mom\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_065bfe6e64be4434016ac67cd0a66087d09f569b49de16f10b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 6,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 6,
+              "output_tokens": 0
+            },
+            "msg_065bfe6e64be4434016ac67cd194a887d0b6d0bd1f09498325": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 29
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 29
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 582,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 29,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 611
+      },
+      "tasks": [
+        {
+          "title": "Call mom",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3011
+    },
+    {
+      "id": "self-correction",
+      "run": 2,
+      "capture": "Book a dentist appointment for Tuesday, no actually Thursday, and remind Ahmed about the design review.",
+      "raw": "{\"tasks\":[{\"title\":\"Book a dentist appointment\",\"details\":\"For Thursday 8 Oct\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Remind Ahmed about the design review\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_08bda48e330aedfa016ac67cd3f35487d08a61ac999b99b3c4": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 23,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 23,
+              "output_tokens": 0
+            },
+            "rs_08bda48e330aedfa016ac67cd4d65c87d0bc81b4198ff8bcab": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 43
+            },
+            "msg_08bda48e330aedfa016ac67cd5b94887d0b370053abec0500f": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 60
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 60
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 103,
+        "output_tokens_details": {
+          "reasoning_tokens": 43
+        },
+        "total_tokens": 702
+      },
+      "tasks": [
+        {
+          "title": "Book a dentist appointment",
+          "details": "For Thursday 8 Oct",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Remind Ahmed about the design review",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4545
+    },
+    {
+      "id": "one-errand",
+      "run": 2,
+      "capture": "Pick up milk, eggs, bread and some coffee on the way home.",
+      "raw": "{\"tasks\":[{\"title\":\"Pick up milk, eggs, bread and coffee\",\"details\":\"On the way home\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0e99a323d553c42f016ac67cd83f7887d08211d8b5961d509d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 19,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 19,
+              "output_tokens": 0
+            },
+            "msg_0e99a323d553c42f016ac67cd95b9487d08a9160376b25ecca": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 41
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 41
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 595,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 41,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 636
+      },
+      "tasks": [
+        {
+          "title": "Pick up milk, eggs, bread and coffee",
+          "details": "On the way home",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3266
+    },
+    {
+      "id": "chatter",
+      "run": 2,
+      "capture": "Ugh, today was so long. The standup ran over again and I'm honestly exhausted.",
+      "raw": "{\"tasks\":[]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_09fb40a670c05592016ac67cdbd52487d0ad27f59acab5f02b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 23,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 23,
+              "output_tokens": 0
+            },
+            "msg_09fb40a670c05592016ac67cdcd09887d089fd5bb81fda5c2e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 12
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 12
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 12,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 611
+      },
+      "tasks": [],
+      "ms": 3063
+    },
+    {
+      "id": "fact",
+      "run": 2,
+      "capture": "The office wifi password is written on the back of the fridge.",
+      "raw": "{\"tasks\":[]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0b123e9eeeb14664016ac67cdea89c87d0a061e66cadd5f5f4": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 17,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 17,
+              "output_tokens": 0
+            },
+            "msg_0b123e9eeeb14664016ac67cdfa04c87d087612ababcd5d2c1": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 12
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 12
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 593,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 12,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 605
+      },
+      "tasks": [],
+      "ms": 2729
+    },
+    {
+      "id": "steps-said",
+      "run": 2,
+      "capture": "I need to set up the CI pipeline for the widget repo, so that's writing the GitHub workflow, adding the ARM64 build and sorting out the signing certificate",
+      "raw": "{\"tasks\":[{\"title\":\"Set up the CI pipeline for the widget repo\",\"details\":\"Write the GitHub workflow, add the ARM64 build and sort out the signing certificate.\",\"priority\":\"medium\",\"effort\":\"long\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0ad933c8313bb83f016ac67ce1372487d0a67fd53bc10521db": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 36,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 36,
+              "output_tokens": 0
+            },
+            "rs_0ad933c8313bb83f016ac67ce1ebf487d0bac36bc8a663968f": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 42
+            },
+            "msg_0ad933c8313bb83f016ac67ce2cc1887d09bf21e4a9d33ebf3": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 56
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 56
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 612,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 98,
+        "output_tokens_details": {
+          "reasoning_tokens": 42
+        },
+        "total_tokens": 710
+      },
+      "tasks": [
+        {
+          "title": "Set up the CI pipeline for the widget repo",
+          "details": "Write the GitHub workflow, add the ARM64 build and sort out the signing certificate.",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        }
+      ],
+      "ms": 3906
+    },
+    {
+      "id": "urgent",
+      "run": 2,
+      "capture": "Urgent, the production cert expires tonight, renew it",
+      "raw": "{\"tasks\":[{\"title\":\"Renew the production cert\",\"details\":\"Expires tonight, Wednesday 7 Oct 2026\",\"priority\":\"high\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_05228fee2061da71016ac67ce50bdc87d0bed1de36d4920ab6": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 15,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 15,
+              "output_tokens": 0
+            },
+            "msg_05228fee2061da71016ac67ce5fa1087d0a3fc1c3de5953157": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 42
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 42
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 591,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 42,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 633
+      },
+      "tasks": [
+        {
+          "title": "Renew the production cert",
+          "details": "Expires tonight, Wednesday 7 Oct 2026",
+          "priority": "high",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 2942
+    },
+    {
+      "id": "no-rush",
+      "run": 2,
+      "capture": "Someday I'd like to properly learn Rust, no rush at all",
+      "raw": "{\"tasks\":[{\"title\":\"Learn Rust properly\",\"details\":\"\",\"priority\":\"low\",\"effort\":\"long\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_05536dbc09f022b9016ac67ce814cc87d080c5fcb6d14aaebc": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 17,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 17,
+              "output_tokens": 0
+            },
+            "msg_05536dbc09f022b9016ac67ce93c4c87d0ad28ca9565d6c70e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 30
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 30
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 593,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 30,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 623
+      },
+      "tasks": [
+        {
+          "title": "Learn Rust properly",
+          "details": "",
+          "priority": "low",
+          "effort": "long",
+          "issues": []
+        }
+      ],
+      "ms": 2995
+    },
+    {
+      "id": "someone-waiting",
+      "run": 2,
+      "capture": "Bilal has been waiting on my code review for two days now, I really need to get to that",
+      "raw": "{\"tasks\":[{\"title\":\"Review Bilal's code\",\"details\":\"Bilal has been waiting for two days\",\"priority\":\"high\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_064a23c08f484cca016ac67ceb1f4887d08bb1e0c10bc9deb9": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 25,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 25,
+              "output_tokens": 0
+            },
+            "msg_064a23c08f484cca016ac67cec0fc087d098693b82ae6b762e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 41
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 41
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 601,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 41,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 642
+      },
+      "tasks": [
+        {
+          "title": "Review Bilal's code",
+          "details": "Bilal has been waiting for two days",
+          "priority": "high",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 3067
+    },
+    {
+      "id": "roman-urdu",
+      "run": 2,
+      "capture": "Ammi ko call karna hai aur bijli ka bill kal tak pay karna hai",
+      "raw": "{\"tasks\":[{\"title\":\"Ammi ko call karo\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"quick\"},{\"title\":\"Bijli ka bill pay karo\",\"details\":\"Thursday 8 Oct tak\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_036bd81308f48064016ac67cee244487d09281513c47668800": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 22,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 22,
+              "output_tokens": 0
+            },
+            "rs_036bd81308f48064016ac67cef347487d0b8adcee8070da984": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 49
+            },
+            "msg_036bd81308f48064016ac67cf0341c87d0ae73ba13ab032e84": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 60
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 60
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 598,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 109,
+        "output_tokens_details": {
+          "reasoning_tokens": 49
+        },
+        "total_tokens": 707
+      },
+      "tasks": [
+        {
+          "title": "Ammi ko call karo",
+          "details": "",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Bijli ka bill pay karo",
+          "details": "Thursday 8 Oct tak",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4499
+    },
+    {
+      "id": "self-question",
+      "run": 2,
+      "capture": "Did I ever send the signed lease back to the landlord? Check that.",
+      "raw": "{\"tasks\":[{\"title\":\"Check whether I sent the signed lease back\",\"details\":\"To the landlord\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_09ea155563212059016ac67cf2d29887d0a80471d6810a2095": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 19,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 19,
+              "output_tokens": 0
+            },
+            "msg_09ea155563212059016ac67cf3d82487d0a617bd2b1a3f7d47": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 39
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 39
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 595,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 39,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 634
+      },
+      "tasks": [
+        {
+          "title": "Check whether I sent the signed lease back",
+          "details": "To the landlord",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3313
+    },
+    {
+      "id": "two-channels",
+      "run": 2,
+      "capture": "Write the release notes for 0.3 and then post them on Discord and on Twitter",
+      "raw": "{\"tasks\":[{\"title\":\"Write the release notes for 0.3\",\"details\":\"\",\"priority\":\"medium\",\"effort\":\"long\"},{\"title\":\"Post the release notes on Discord and Twitter\",\"details\":\"For version 0.3\",\"priority\":\"medium\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0ffeda96e149b9e0016ac67cf5f08c87d09faaead9f4020609": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 22,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 22,
+              "output_tokens": 0
+            },
+            "rs_0ffeda96e149b9e0016ac67cf6b96c87d08a2d5f714044ba21": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 103
+            },
+            "msg_0ffeda96e149b9e0016ac67cf8d88c87d0845c366a049d48f1": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 67
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 67
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 598,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 170,
+        "output_tokens_details": {
+          "reasoning_tokens": 103
+        },
+        "total_tokens": 768
+      },
+      "tasks": [
+        {
+          "title": "Write the release notes for 0.3",
+          "details": "",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        },
+        {
+          "title": "Post the release notes on Discord and Twitter",
+          "details": "For version 0.3",
+          "priority": "medium",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 6047
+    },
+    {
+      "id": "meeting",
+      "run": 2,
+      "capture": "Meeting with Hina on Monday at 3 to go over the Q4 budget, I need to prep the slides before that",
+      "raw": "{\"tasks\":[{\"title\":\"Meet with Hina to go over the Q4 budget\",\"details\":\"Monday 12 Oct at 3\",\"priority\":\"medium\",\"effort\":\"short\"},{\"title\":\"Prep the slides for the meeting with Hina\",\"details\":\"Before Monday 12 Oct at 3\",\"priority\":\"medium\",\"effort\":\"long\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_049cab43f21154ec016ac67cfcf67087d0810412d05996c6f7": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 29,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 29,
+              "output_tokens": 0
+            },
+            "rs_049cab43f21154ec016ac67cfe1e8087d0be9f958ac55f5b60": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 148
+            },
+            "msg_049cab43f21154ec016ac67d012b3887d0af4cb73e9dbba1c8": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 80
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 80
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 605,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 228,
+        "output_tokens_details": {
+          "reasoning_tokens": 148
+        },
+        "total_tokens": 833
+      },
+      "tasks": [
+        {
+          "title": "Meet with Hina to go over the Q4 budget",
+          "details": "Monday 12 Oct at 3",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Prep the slides for the meeting with Hina",
+          "details": "Before Monday 12 Oct at 3",
+          "priority": "medium",
+          "effort": "long",
+          "issues": []
+        }
+      ],
+      "ms": 7715
+    },
+    {
+      "id": "long-title",
+      "run": 2,
+      "capture": "Reply to the email from the university admissions office asking for my transcript and the two recommendation letters",
+      "raw": "{\"tasks\":[{\"title\":\"Reply to the university admissions office\",\"details\":\"Send my transcript and the two recommendation letters\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0cf62252bdd75917016ac67d03f55c87d0a708de18d78261b8": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 22,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 22,
+              "output_tokens": 0
+            },
+            "msg_0cf62252bdd75917016ac67d059f0887d081923676ee3b778c": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 42
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 42
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 598,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 42,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 640
+      },
+      "tasks": [
+        {
+          "title": "Reply to the university admissions office",
+          "details": "Send my transcript and the two recommendation letters",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 4047
+    },
+    {
+      "id": "ramble",
+      "run": 2,
+      "capture": "Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.",
+      "raw": "{\"tasks\":[{\"title\":\"Be home for the plumber\",\"details\":\"Before 9:00 AM on Thursday 8 Oct; the landlord said the plumber is coming that morning\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Cancel the Adobe subscription\",\"details\":\"It renews on Thursday 15 Oct\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Send Zain the API docs\",\"details\":\"Zain is blocked on them\",\"priority\":\"high\",\"effort\":\"quick\"},{\"title\":\"Look into reducing the widget's docked memory use\",\"details\":\"\",\"priority\":\"low\",\"effort\":\"short\"},{\"title\":\"Buy a birthday gift for Fatima\",\"details\":\"Her birthday is Saturday 17 Oct\",\"priority\":\"medium\",\"effort\":\"short\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0867a9899f920948016ac67d07d2fc87d08293c1568f2ec392": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 101,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 101,
+              "output_tokens": 0
+            },
+            "rs_0867a9899f920948016ac67d08bcf087d0ae795c18265e39b2": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 317
+            },
+            "msg_0867a9899f920948016ac67d100de487d0a679c70f95038f57": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 163
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 163
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 677,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 480,
+        "output_tokens_details": {
+          "reasoning_tokens": 317
+        },
+        "total_tokens": 1157
+      },
+      "tasks": [
+        {
+          "title": "Be home for the plumber",
+          "details": "Before 9:00 AM on Thursday 8 Oct; the landlord said the plumber is coming that morning",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Cancel the Adobe subscription",
+          "details": "It renews on Thursday 15 Oct",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Send Zain the API docs",
+          "details": "Zain is blocked on them",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        },
+        {
+          "title": "Look into reducing the widget's docked memory use",
+          "details": "",
+          "priority": "low",
+          "effort": "short",
+          "issues": []
+        },
+        {
+          "title": "Buy a birthday gift for Fatima",
+          "details": "Her birthday is Saturday 17 Oct",
+          "priority": "medium",
+          "effort": "short",
+          "issues": []
+        }
+      ],
+      "ms": 11085
+    },
+    {
+      "id": "misheard",
+      "run": 2,
+      "capture": "Email Sara the in voice for the Q3 retainer and cc Omar",
+      "raw": "{\"tasks\":[{\"title\":\"Email Sara the invoice for the Q3 retainer\",\"details\":\"CC Omar\",\"priority\":\"high\",\"effort\":\"quick\"}]}",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0fd56d250559e77c016ac67d1346f487d0a67ff47fa68a5dc2": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 18,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 18,
+              "output_tokens": 0
+            },
+            "msg_0fd56d250559e77c016ac67d14331887d0ac9fc0ca252cd25d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2,
+                  "output_tokens": 40
+                }
+              ],
+              "input_tokens": 2,
+              "output_tokens": 40
+            }
+          },
+          "request_fields": {
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 76,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 498,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 594,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 40,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 634
+      },
+      "tasks": [
+        {
+          "title": "Email Sara the invoice for the Q3 retainer",
+          "details": "CC Omar",
+          "priority": "high",
+          "effort": "quick",
+          "issues": []
+        }
+      ],
+      "ms": 3436
+    }
+  ]
+}

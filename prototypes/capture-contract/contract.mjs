@@ -1,7 +1,7 @@
 // PROTOTYPE — the Capture → Tasks contract under test (issue #15).
 // The liftable part: schema, instructions, tolerant parse, rule checks. No I/O here.
 
-export const CONTRACT_VERSION = "v1";
+export const CONTRACT_VERSION = "v2";
 
 // Strict json_schema: every property required, no additionalProperties.
 // "No actionable Task" is an empty `tasks` array. Array order = spoken order.
@@ -59,13 +59,14 @@ title
 details
 - Only context stated in the Capture that the title leaves out: who, deadlines, where, why, amounts, steps the user listed.
 - Never invent steps, advice or anything else the user didn't say. If there is nothing to add, use "".
-- Turn relative dates into a weekday and date, using today's date ("before Friday" becomes "Before Friday 9 Oct").
+- Turn relative dates into a short weekday and date, using today's date: "before Friday" becomes "Before Fri 9 Oct". No year unless it isn't this year. Times as the user said them ("3pm", "before 9").
+- Write details as one short phrase or sentence fragment, with no full stop at the end.
 
 priority
-- high: something bad happens or someone is waiting if it isn't done soon (a deadline in the next 3 days, someone blocked or waiting, money, health or legal trouble).
-- medium: it matters, but nothing breaks this week.
-- low: nice to do; nothing happens if it slips.
-- Words the user says about urgency ("urgent", "no rush", "whenever") win over your own judgement. With no signal at all, use medium.
+- high: only when the Capture itself gives a reason: a deadline within 3 days of today, someone waiting on or blocked by the user, or a stated bad consequence (money, health, legal, something breaking).
+- medium: it matters, but nothing breaks this week. A deadline more than 3 days away is medium. This is the default: an ordinary errand, email or chore with no reason given is medium.
+- low: nice to do; nothing happens if it slips ("someday", "at some point", "if I get time").
+- Words the user says about urgency ("urgent", "no rush", "whenever") win over your own judgement.
 
 effort (how long the action itself takes)
 - quick: 15 minutes or less (a call, a short message, a purchase on the way).

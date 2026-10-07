@@ -10,7 +10,7 @@ main{max-width:1500px;margin:0 auto;padding:24px 16px}
 h1{font-size:22px;margin:0 0 4px}p.lead{color:var(--muted);margin:0 0 20px}
 details.instr{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:20px}
 details.instr pre{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,Consolas,monospace}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:300px}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:940px}
 th,td{border-bottom:1px solid var(--line);padding:10px;vertical-align:top;text-align:left}
 th{position:sticky;top:0;background:var(--bg);font-weight:400}
 .colhead span,.meta,.muted,.want{color:var(--muted);font-size:12.5px}
@@ -25,42 +25,369 @@ td.miss{background:var(--miss)}
 </style></head><body><main>
 <h1>Capture → Tasks contract</h1>
 <p class="lead">PROTOTYPE for issue #15. Each row is a dictated Capture; each column is a Connection + model. Orange cells got a different number of Tasks than expected. ⚑ marks mechanical rule breaks. Splitting and invented Details need your eye.</p>
-<details class="instr"><summary>Instructions sent (latest run)</summary><pre>(no runs yet)</pre></details>
-<div class="wrap"><table><thead><tr><th class="cap">Capture</th></tr></thead><tbody>
+<details class="instr"><summary>Instructions sent (latest run)</summary><pre>You turn one dictated note (a &quot;Capture&quot;) into tasks for the user's personal to-do list.
+
+The Capture was dictated, so it may contain filler, false starts, self-corrections and transcription slips. When the user corrects themselves (&quot;Tuesday, no, Thursday&quot;), keep only the correction. Ignore filler.
+
+Splitting
+- Make one task per action the user would tick off on its own.
+- Never break an action into steps or sub-tasks, even if the user lists the steps. Put steps they said into details instead.
+- One action with several objects stays one task (&quot;Buy milk, eggs and bread&quot;).
+- Thinking, deciding or checking something counts as an action (&quot;Decide whether to move to Postgres&quot;).
+- Drop chatter, feelings, and facts that ask for no action. If nothing in the Capture asks for action, return an empty tasks list.
+- Keep the tasks in the order they were said.
+
+title
+- One line, at most 60 characters, starting with a verb in the imperative (&quot;Email Sarah the invoice&quot;).
+- Use the Capture's own words wherever you can. Add nothing that the Capture doesn't say.
+- Write it in the language of the Capture. Sentence case, no full stop at the end.
+
+details
+- Only context stated in the Capture that the title leaves out: who, deadlines, where, why, amounts, steps the user listed.
+- Never invent steps, advice or anything else the user didn't say. If there is nothing to add, use &quot;&quot;.
+- Turn relative dates into a short weekday and date, using today's date: &quot;before Friday&quot; becomes &quot;Before Fri 9 Oct&quot;. No year unless it isn't this year. Times as the user said them (&quot;3pm&quot;, &quot;before 9&quot;).
+- Write details as one short phrase or sentence fragment, with no full stop at the end.
+
+priority
+- high: only when the Capture itself gives a reason: a deadline within 3 days of today, someone waiting on or blocked by the user, or a stated bad consequence (money, health, legal, something breaking).
+- medium: it matters, but nothing breaks this week. A deadline more than 3 days away is medium. This is the default: an ordinary errand, email or chore with no reason given is medium.
+- low: nice to do; nothing happens if it slips (&quot;someday&quot;, &quot;at some point&quot;, &quot;if I get time&quot;).
+- Words the user says about urgency (&quot;urgent&quot;, &quot;no rush&quot;, &quot;whenever&quot;) win over your own judgement.
+
+effort (how long the action itself takes)
+- quick: 15 minutes or less (a call, a short message, a purchase on the way).
+- short: up to an hour.
+- long: more than an hour (writing, building, refactoring, studying).
+
+Today is Wednesday 7 Oct 2026.</pre></details>
+<div class="wrap"><table><thead><tr><th class="cap">Capture</th><th><div class="colhead"><b>chatgpt</b> · gpt-5.6-sol<br>
+    <span>17/18 counts as expected · 0 rule flags · 0 errors · median 4.0 s · v1</span></div></th><th><div class="colhead"><b>chatgpt</b> · gpt-5.6-sol<br>
+    <span>18/18 counts as expected · 0 rule flags · 0 errors · median 3.9 s · v2</span></div></th></tr></thead><tbody>
 <tr><td class="cap"><div class="probe">Basic split + deadline</div><q>Email Sarah the invoice and also I need to refactor the auth module before Friday, oh and buy milk</q>
-<div class="want">Expect 3: Email Sarah the invoice / Refactor the auth module (Details: before Fri 9 Oct, High) / Buy milk (Low, Quick)</div></td></tr>
+<div class="want">Expect 3: Email Sarah the invoice / Refactor the auth module (Details: before Fri 9 Oct, High) / Buy milk (Low, Quick)</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Email Sarah the invoice</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">long</span>
+      <span class="title">Refactor the auth module</span></div>
+      <div class="details">Before Friday 9 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Buy milk</span></div>
+      
+      
+    </div>
+    <div class="meta">8.1 s · counts over 2 runs: 3, 3</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Email Sarah the invoice</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">long</span>
+      <span class="title">Refactor the auth module</span></div>
+      <div class="details">Before Fri 9 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Buy milk</span></div>
+      
+      
+    </div>
+    <div class="meta">5.9 s · counts over 2 runs: 3, 3</div></td></tr>
 <tr><td class="cap"><div class="probe">Thinking counts as a Task</div><q>think about whether we should move to Postgres</q>
-<div class="want">Expect 1: Decide whether to move to Postgres; Long or Short, Medium</div></td></tr>
+<div class="want">Expect 1: Decide whether to move to Postgres; Long or Short, Medium</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">short</span>
+      <span class="title">Decide whether to move to Postgres</span></div>
+      
+      
+    </div>
+    <div class="meta">4.3 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">short</span>
+      <span class="title">Decide whether to move to Postgres</span></div>
+      
+      
+    </div>
+    <div class="meta">4.1 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Smallest possible Capture</div><q>Call mom</q>
-<div class="want">Expect 1: Call mom, Quick, Details empty</div></td></tr>
+<div class="want">Expect 1: Call mom, Quick, Details empty</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Call mom</span></div>
+      
+      
+    </div>
+    <div class="meta">4.3 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Call mom</span></div>
+      
+      
+    </div>
+    <div class="meta">3.3 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Spoken correction wins</div><q>Book a dentist appointment for Tuesday, no actually Thursday, and remind Ahmed about the design review.</q>
-<div class="want">Expect 2: Dentist on Thursday (not Tuesday) in Title or Details; Remind Ahmed about the design review</div></td></tr>
+<div class="want">Expect 2: Dentist on Thursday (not Tuesday) in Title or Details; Remind Ahmed about the design review</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Book a dentist appointment</span></div>
+      <div class="details">For Thursday 8 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Remind Ahmed about the design review</span></div>
+      
+      
+    </div>
+    <div class="meta">6.0 s · counts over 2 runs: 2, 2</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Book a dentist appointment</span></div>
+      <div class="details">For Thu 8 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Remind Ahmed about the design review</span></div>
+      
+      
+    </div>
+    <div class="meta">5.5 s · counts over 2 runs: 2, 2</div></td></tr>
 <tr><td class="cap"><div class="probe">Several objects, one action</div><q>Pick up milk, eggs, bread and some coffee on the way home.</q>
-<div class="want">Expect 1: One Task: Pick up milk, eggs, bread and coffee</div></td></tr>
+<div class="want">Expect 1: One Task: Pick up milk, eggs, bread and coffee</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Pick up milk, eggs, bread and coffee</span></div>
+      <div class="details">On the way home</div>
+      
+    </div>
+    <div class="meta">3.1 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Pick up milk, eggs, bread and coffee</span></div>
+      <div class="details">On the way home</div>
+      
+    </div>
+    <div class="meta">3.9 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Nothing actionable → zero Tasks</div><q>Ugh, today was so long. The standup ran over again and I'm honestly exhausted.</q>
-<div class="want">Expect 0: Empty list</div></td></tr>
+<div class="want">Expect 0: Empty list</div></td><td class=""><div class="muted">No Tasks</div>
+    <div class="meta">3.2 s · counts over 2 runs: 0, 0</div></td><td class=""><div class="muted">No Tasks</div>
+    <div class="meta">2.7 s · counts over 2 runs: 0, 0</div></td></tr>
 <tr><td class="cap"><div class="probe">A fact with no ask → zero Tasks</div><q>The office wifi password is written on the back of the fridge.</q>
-<div class="want">Expect 0: Empty list (debatable: some would want 'Note the wifi password')</div></td></tr>
+<div class="want">Expect 0: Empty list (debatable: some would want 'Note the wifi password')</div></td><td class=""><div class="muted">No Tasks</div>
+    <div class="meta">2.8 s · counts over 2 runs: 0, 0</div></td><td class=""><div class="muted">No Tasks</div>
+    <div class="meta">2.8 s · counts over 2 runs: 0, 0</div></td></tr>
 <tr><td class="cap"><div class="probe">User lists steps of one job</div><q>I need to set up the CI pipeline for the widget repo, so that's writing the GitHub workflow, adding the ARM64 build and sorting out the signing certificate</q>
-<div class="want">Expect 1: Glossary says one Task; the steps the user said go in Details. Debatable: signing cert could stand alone</div></td></tr>
+<div class="want">Expect 1: Glossary says one Task; the steps the user said go in Details. Debatable: signing cert could stand alone</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">long</span>
+      <span class="title">Set up the CI pipeline for the widget repo</span></div>
+      <div class="details">Write the GitHub workflow, add the ARM64 build and sort out the signing certificate.</div>
+      
+    </div>
+    <div class="meta">5.5 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">long</span>
+      <span class="title">Set up the CI pipeline for the widget repo</span></div>
+      <div class="details">Write the GitHub workflow, add the ARM64 build and sort out the signing certificate</div>
+      
+    </div>
+    <div class="meta">4.0 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Explicit urgency word</div><q>Urgent, the production cert expires tonight, renew it</q>
-<div class="want">Expect 1: Renew the production cert; High; Details: expires tonight (Wed 7 Oct)</div></td></tr>
+<div class="want">Expect 1: Renew the production cert; High; Details: expires tonight (Wed 7 Oct)</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">short</span>
+      <span class="title">Renew the production cert</span></div>
+      <div class="details">Expires tonight, Wednesday 7 Oct 2026</div>
+      
+    </div>
+    <div class="meta">3.7 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">short</span>
+      <span class="title">Renew the production cert</span></div>
+      <div class="details">Expires tonight</div>
+      
+    </div>
+    <div class="meta">3.6 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Explicit low urgency</div><q>Someday I'd like to properly learn Rust, no rush at all</q>
-<div class="want">Expect 1: Learn Rust; Low; Long</div></td></tr>
+<div class="want">Expect 1: Learn Rust; Low; Long</div></td><td class=""><div class="task">
+      <div><span class="pri low">low</span><span class="eff">long</span>
+      <span class="title">Learn Rust</span></div>
+      <div class="details">Someday; properly</div>
+      
+    </div>
+    <div class="meta">3.4 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri low">low</span><span class="eff">long</span>
+      <span class="title">Learn Rust properly</span></div>
+      
+      
+    </div>
+    <div class="meta">3.0 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Someone waiting → High</div><q>Bilal has been waiting on my code review for two days now, I really need to get to that</q>
-<div class="want">Expect 1: Review Bilal's code; High; Short; Details: waiting two days</div></td></tr>
+<div class="want">Expect 1: Review Bilal's code; High; Short; Details: waiting two days</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">short</span>
+      <span class="title">Review Bilal's code</span></div>
+      <div class="details">Bilal has been waiting for two days.</div>
+      
+    </div>
+    <div class="meta">3.2 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">short</span>
+      <span class="title">Review Bilal's code</span></div>
+      <div class="details">Bilal has been waiting for two days</div>
+      
+    </div>
+    <div class="meta">3.4 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Language of the Capture</div><q>Ammi ko call karna hai aur bijli ka bill kal tak pay karna hai</q>
-<div class="want">Expect 2: Titles in Roman Urdu, e.g. 'Ammi ko call karna' / 'Bijli ka bill pay karna'; bill High with 'by Thu 8 Oct'</div></td></tr>
+<div class="want">Expect 2: Titles in Roman Urdu, e.g. 'Ammi ko call karna' / 'Bijli ka bill pay karna'; bill High with 'by Thu 8 Oct'</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Ammi ko call karo</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Bijli ka bill pay karo</span></div>
+      <div class="details">Thursday 8 Oct 2026 tak</div>
+      
+    </div>
+    <div class="meta">4.7 s · counts over 2 runs: 2, 2</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Ammi ko call karo</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Bijli ka bill pay karo</span></div>
+      <div class="details">Thu 8 Oct tak</div>
+      
+    </div>
+    <div class="meta">4.9 s · counts over 2 runs: 2, 2</div></td></tr>
 <tr><td class="cap"><div class="probe">Question to self → check Task</div><q>Did I ever send the signed lease back to the landlord? Check that.</q>
-<div class="want">Expect 1: Check whether I sent the signed lease to the landlord; Quick</div></td></tr>
+<div class="want">Expect 1: Check whether I sent the signed lease to the landlord; Quick</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Check whether I sent the signed lease back</span></div>
+      <div class="details">To the landlord</div>
+      
+    </div>
+    <div class="meta">4.4 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Check whether you sent the signed lease back</span></div>
+      <div class="details">To the landlord</div>
+      
+    </div>
+    <div class="meta">3.5 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Same action, two places</div><q>Write the release notes for 0.3 and then post them on Discord and on Twitter</q>
-<div class="want">Expect 2: Write the release notes for 0.3 / Post them on Discord and Twitter (one Task, not two)</div></td></tr>
+<div class="want">Expect 2: Write the release notes for 0.3 / Post them on Discord and Twitter (one Task, not two)</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">long</span>
+      <span class="title">Write the release notes for 0.3</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Post the release notes on Discord and Twitter</span></div>
+      <div class="details">After writing the release notes for 0.3</div>
+      
+    </div>
+    <div class="meta">5.4 s · counts over 2 runs: 2, 2</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">long</span>
+      <span class="title">Write the release notes for 0.3</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Post the release notes on Discord and Twitter</span></div>
+      <div class="details">Release 0.3</div>
+      
+    </div>
+    <div class="meta">4.7 s · counts over 2 runs: 2, 2</div></td></tr>
 <tr><td class="cap"><div class="probe">Calendar event vs. prep</div><q>Meeting with Hina on Monday at 3 to go over the Q4 budget, I need to prep the slides before that</q>
-<div class="want">Expect 1: Prep the Q4 budget slides; Details: for meeting with Hina Mon 12 Oct 3pm. The meeting itself is not a Task (debatable)</div></td></tr>
+<div class="want">Expect 1: Prep the Q4 budget slides; Details: for meeting with Hina Mon 12 Oct 3pm. The meeting itself is not a Task (debatable)</div></td><td class="miss"><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">short</span>
+      <span class="title">Meet Hina to go over the Q4 budget</span></div>
+      <div class="details">Monday 12 Oct at 3pm</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">long</span>
+      <span class="title">Prep the Q4 budget slides</span></div>
+      <div class="details">Before Monday 12 Oct at 3pm for the meeting with Hina</div>
+      
+    </div>
+    <div class="meta">6.2 s · counts over 2 runs: 2, 2</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">short</span>
+      <span class="title">Prepare the Q4 budget slides</span></div>
+      <div class="details">Before meeting with Hina on Mon 12 Oct at 3</div>
+      
+    </div>
+    <div class="meta">8.3 s · counts over 2 runs: 1, 2 ⚠ unstable</div></td></tr>
 <tr><td class="cap"><div class="probe">60-char Title limit</div><q>Reply to the email from the university admissions office asking for my transcript and the two recommendation letters</q>
-<div class="want">Expect 1: Title ≤60 chars, e.g. 'Reply to the admissions office email'; transcript + letters in Details</div></td></tr>
+<div class="want">Expect 1: Title ≤60 chars, e.g. 'Reply to the admissions office email'; transcript + letters in Details</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Reply to the university admissions office</span></div>
+      <div class="details">Send the transcript and two recommendation letters they requested.</div>
+      
+    </div>
+    <div class="meta">4.0 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Reply to the university admissions office</span></div>
+      <div class="details">Send my transcript and the two recommendation letters</div>
+      
+    </div>
+    <div class="meta">3.1 s · counts over 2 runs: 1, 1</div></td></tr>
 <tr><td class="cap"><div class="probe">Long dictation, many items</div><q>Okay so a bunch of stuff. First the landlord said the plumber's coming tomorrow morning so I have to be home before nine. Um, I should finally cancel that Adobe subscription, it renews on the fifteenth. Zain asked me to send him the API docs, he's blocked on it. And at some point look into whether the widget can use less memory when it's docked. Oh and I need to buy a birthday gift for Fatima, her birthday is next Saturday.</q>
-<div class="want">Expect 5: Be home before 9 for the plumber (High, Thu 8 Oct) / Cancel Adobe subscription (renews 15 Oct) / Send Zain the API docs (High, blocked) / Look into lower docked memory (Low/Medium, Long) / Buy Fatima a birthday gift (Sat 17 Oct)</div></td></tr>
+<div class="want">Expect 5: Be home before 9 for the plumber (High, Thu 8 Oct) / Cancel Adobe subscription (renews 15 Oct) / Send Zain the API docs (High, blocked) / Look into lower docked memory (Low/Medium, Long) / Buy Fatima a birthday gift (Sat 17 Oct)</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">long</span>
+      <span class="title">Be home for the plumber</span></div>
+      <div class="details">Tomorrow morning, Thursday 8 Oct, before 9:00</div>
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Cancel the Adobe subscription</span></div>
+      <div class="details">It renews on Thursday 15 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Send Zain the API docs</span></div>
+      <div class="details">Zain is blocked on them</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">long</span>
+      <span class="title">Look into whether the widget can use less memory</span></div>
+      <div class="details">When it’s docked</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">short</span>
+      <span class="title">Buy a birthday gift for Fatima</span></div>
+      <div class="details">Her birthday is Saturday 17 Oct</div>
+      
+    </div>
+    <div class="meta">8.3 s · counts over 2 runs: 5, 5</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">short</span>
+      <span class="title">Be home for the plumber</span></div>
+      <div class="details">Before 9 on Thu 8 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Cancel the Adobe subscription</span></div>
+      <div class="details">Renews Thu 15 Oct</div>
+      
+    </div><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Send Zain the API docs</span></div>
+      <div class="details">Zain is blocked on them</div>
+      
+    </div><div class="task">
+      <div><span class="pri low">low</span><span class="eff">short</span>
+      <span class="title">Look into reducing the docked widget's memory use</span></div>
+      
+      
+    </div><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">short</span>
+      <span class="title">Buy a birthday gift for Fatima</span></div>
+      <div class="details">Her birthday is Sat 17 Oct</div>
+      
+    </div>
+    <div class="meta">9.7 s · counts over 2 runs: 5, 5</div></td></tr>
 <tr><td class="cap"><div class="probe">Transcription slip (Re-interpret material)</div><q>Email Sara the in voice for the Q3 retainer and cc Omar</q>
-<div class="want">Expect 1: Keep the user's words; a light fix to 'invoice' is fine. Details: Q3 retainer, cc Omar</div></td></tr>
+<div class="want">Expect 1: Keep the user's words; a light fix to 'invoice' is fine. Details: Q3 retainer, cc Omar</div></td><td class=""><div class="task">
+      <div><span class="pri high">high</span><span class="eff">quick</span>
+      <span class="title">Email Sara the invoice for the Q3 retainer</span></div>
+      <div class="details">Cc Omar</div>
+      
+    </div>
+    <div class="meta">3.1 s · counts over 2 runs: 1, 1</div></td><td class=""><div class="task">
+      <div><span class="pri medium">medium</span><span class="eff">quick</span>
+      <span class="title">Email Sara the invoice for the Q3 retainer</span></div>
+      <div class="details">Cc Omar</div>
+      
+    </div>
+    <div class="meta">3.2 s · counts over 2 runs: 1, 1</div></td></tr>
 </tbody></table></div></main></body></html>
