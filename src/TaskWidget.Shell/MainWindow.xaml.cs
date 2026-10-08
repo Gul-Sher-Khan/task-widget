@@ -45,6 +45,7 @@ public sealed partial class MainWindow : Window
     {
         Model = model;
         InitializeComponent();
+        SettingsHost.Children.Add(new SettingsPanel(model));
         Title = "Task Widget";
 
         var presenter = OverlappedPresenter.Create();
@@ -99,6 +100,8 @@ public sealed partial class MainWindow : Window
         else
             PlayToWidget();
     }
+
+    void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
 
     void Capture_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {

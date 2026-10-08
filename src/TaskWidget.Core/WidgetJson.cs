@@ -21,6 +21,7 @@ sealed class SettingsFile
 {
     public int SchemaVersion { get; set; }
     public bool Docked { get; set; }
+    public int RowsBeforeScrolling { get; set; } = 8;
 }
 
 [JsonSourceGenerationOptions(
