@@ -1,30 +1,41 @@
 using System.Collections.ObjectModel;
+using System.Runtime.Versioning;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Win32;
+
+[assembly: SupportedOSPlatform("windows")]
 
 namespace TaskWidget.Core;
 
 public sealed partial class AppModel : ObservableObject, IDisposable
 {
     public static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(300);
+    public const string RunValueName = "Task Widget";
+    public const string DefaultRunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
     readonly IClock clock;
     readonly string tasksPath;
     readonly string settingsPath;
+    readonly string runKeyPath;
     readonly object gate = new();
     string? pendingTasks;
     string? pendingSettings;
     int dirty;
     int disposed;
+    int rowsBeforeScrolling = 8;
+    bool startWithWindows;
 
-    public AppModel(string dataFolder, IClock clock)
+    public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
     {
         this.clock = clock;
+        this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
         Directory.CreateDirectory(dataFolder);
         tasksPath = Path.Combine(dataFolder, "tasks.json");
         settingsPath = Path.Combine(dataFolder, "settings.json");
         Tasks.CollectionChanged += (_, _) => OnPropertyChanged(nameof(OpenTaskCount));
         Load();
+        startWithWindows = RunValueExists();
     }
 
     [ObservableProperty]
@@ -33,6 +44,67 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
     public int OpenTaskCount => Tasks.Count;
+
+    public int RowsBeforeScrolling
+    {
+        get => rowsBeforeScrolling;
+        set
+        {
+            value = ClampRows(value);
+            if (rowsBeforeScrolling == value)
+                return;
+
+            rowsBeforeScrolling = value;
+            OnPropertyChanged(nameof(RowsBeforeScrolling));
+            OnPropertyChanged(nameof(RowsBeforeScrollingValue));
+            OnPropertyChanged(nameof(ListMaxHeight));
+            MarkDirty();
+        }
+    }
+
+    public double ListMaxHeight => rowsBeforeScrolling * 37d + 4d;
+
+    public double RowsBeforeScrollingValue
+    {
+        get => rowsBeforeScrolling;
+        set => RowsBeforeScrolling = (int)value;
+    }
+
+    public string VersionLine
+    {
+        get
+        {
+            var version = typeof(AppModel).Assembly.GetName().Version!;
+            return "Task Widget " + version.Major + "." + version.Minor + "." + version.Build;
+        }
+    }
+
+    public string GitHubUrl => "https://github.com/Gul-Sher-Khan/task-widget";
+
+    public string PrivacyUrl => "https://github.com/Gul-Sher-Khan/task-widget#privacy";
+
+    [ObservableProperty]
+    public partial bool SettingsOpen { get; set; }
+
+    public bool ShowingTasks => !SettingsOpen;
+
+    public void ToggleSettings() => SettingsOpen = !SettingsOpen;
+
+    partial void OnSettingsOpenChanged(bool value) => OnPropertyChanged(nameof(ShowingTasks));
+
+    public bool StartWithWindows
+    {
+        get => startWithWindows;
+        set
+        {
+            if (startWithWindows == value)
+                return;
+
+            startWithWindows = value;
+            ApplyRunValue();
+            OnPropertyChanged(nameof(StartWithWindows));
+        }
+    }
 
     public void UpdateDraft(string text) => CaptureText = text;
 
@@ -67,7 +139,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             return;
 
         var tasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
-        var settings = JsonSerializer.Serialize(new SettingsFile { SchemaVersion = 1 }, WidgetJsonContext.Default.SettingsFile);
+        var settings = JsonSerializer.Serialize(SnapshotSettings(), WidgetJsonContext.Default.SettingsFile);
         lock (gate)
         {
             pendingTasks = tasks;
@@ -100,8 +172,15 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(priority)),
     };
 
+    SettingsFile SnapshotSettings() => new()
+    {
+        SchemaVersion = 1,
+        RowsBeforeScrolling = rowsBeforeScrolling,
+    };
+
     void Load()
     {
+        LoadSettings();
         if (!File.Exists(tasksPath))
             return;
 
@@ -119,6 +198,44 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
 
         CaptureText = file.Draft;
+    }
+
+    void LoadSettings()
+    {
+        if (!File.Exists(settingsPath))
+            return;
+
+        SettingsFile? file;
+        try
+        {
+            file = JsonSerializer.Deserialize(File.ReadAllText(settingsPath), WidgetJsonContext.Default.SettingsFile);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (file is null)
+            return;
+
+        rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
+    }
+
+    static int ClampRows(int value) => Math.Clamp(value, 4, 15);
+
+    bool RunValueExists()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(runKeyPath);
+        return key?.GetValue(RunValueName) is not null;
+    }
+
+    void ApplyRunValue()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(runKeyPath);
+        if (startWithWindows)
+            key.SetValue(RunValueName, "\"" + Environment.ProcessPath + "\"");
+        else
+            key.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
 
     static Priority ParsePriority(string value) => value switch

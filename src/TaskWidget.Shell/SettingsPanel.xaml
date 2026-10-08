@@ -1,0 +1,64 @@
+<UserControl
+    x:Class="TaskWidget.SettingsPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TaskWidget">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+            <Setter Property="Margin" Value="4,14,0,6" />
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12,10,12,12" />
+        </Style>
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{ThemeResource FaintTextBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer x:Name="Scroller" MaxHeight="520" Padding="12,0,12,4" VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="0,0,0,8">
+
+            <TextBlock Text="Widget" Style="{StaticResource Section}" Margin="4,4,0,6" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="6">
+                    <Grid>
+                        <TextBlock Text="Rows before scrolling" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.RowsBeforeScrolling), Mode=OneWay}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Slider x:Name="Rows" Minimum="4" Maximum="15" StepFrequency="1"
+                            Value="{x:Bind Model.RowsBeforeScrollingValue, Mode=OneWay}" ValueChanged="Rows_Changed" />
+                    <Grid Margin="0,4,0,0">
+                        <TextBlock Text="Start with Windows" FontSize="13" VerticalAlignment="Center" />
+                        <ToggleSwitch x:Name="Startup" IsOn="{x:Bind Model.StartWithWindows, Mode=OneWay}" OnContent="" OffContent="" MinWidth="0"
+                                      HorizontalAlignment="Right" Margin="0,0,-12,0" Toggled="Startup_Toggled" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="About" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Model.VersionLine, Mode=OneWay}" FontSize="13" />
+                            <TextBlock Text="Open source, MIT" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
+                        </StackPanel>
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                            <HyperlinkButton Content="Privacy" FontSize="12.5" NavigateUri="https://github.com/Gul-Sher-Khan/task-widget#privacy" />
+                            <HyperlinkButton Content="GitHub" FontSize="12.5" NavigateUri="https://github.com/Gul-Sher-Khan/task-widget" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

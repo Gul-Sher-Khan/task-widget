@@ -20,6 +20,7 @@ sealed class TaskRecord
 sealed class SettingsFile
 {
     public int SchemaVersion { get; set; }
+    public int RowsBeforeScrolling { get; set; } = 8;
 }
 
 [JsonSourceGenerationOptions(
