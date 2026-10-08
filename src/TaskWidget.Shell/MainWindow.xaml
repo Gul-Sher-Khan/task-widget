@@ -11,6 +11,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Padding="16,10,8,4" ColumnSpacing="2">
@@ -51,7 +52,9 @@
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
+            <Grid x:Name="BannerHost" Grid.Row="1" Visibility="{x:Bind local:Row.When(Model.HasBanner), Mode=OneWay}" />
+
+            <Grid Grid.Row="2" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                 <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
                          PlaceholderText="Capture a thought…"
@@ -59,7 +62,7 @@
                          ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
             </Grid>
 
-            <ListView x:Name="List" Grid.Row="2" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
+            <ListView x:Name="List" Grid.Row="3" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
                       ItemsSource="{x:Bind Model.Tasks, Mode=OneWay}"
                       ItemContainerStyle="{StaticResource PlainRow}"
                       SelectionMode="Single"
@@ -98,7 +101,7 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <Grid x:Name="SettingsHost" Grid.Row="3" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
+            <Grid x:Name="SettingsHost" Grid.Row="4" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"

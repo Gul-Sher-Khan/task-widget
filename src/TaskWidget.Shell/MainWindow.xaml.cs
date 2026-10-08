@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Composition;
@@ -36,6 +37,7 @@ public sealed partial class MainWindow : Window
     long animStart;
     bool rendering;
     bool placed;
+    bool finishing;
     int dragFrom = -1;
     bool driving;
     bool slide;
@@ -48,6 +50,7 @@ public sealed partial class MainWindow : Window
         Model = model;
         InitializeComponent();
         SettingsHost.Children.Add(new SettingsPanel(model));
+        BannerHost.Children.Add(new BannerView(model));
         Title = "Task Widget";
 
         var presenter = OverlappedPresenter.Create();
@@ -137,6 +140,15 @@ public sealed partial class MainWindow : Window
 
     void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(AppModel.RestartRequested) && Model.RestartRequested)
+        {
+            if (DispatcherQueue.HasThreadAccess)
+                FinishUpdate();
+            else
+                DispatcherQueue.TryEnqueue(FinishUpdate);
+            return;
+        }
+
         if (e.PropertyName != nameof(AppModel.Docked) || !placed)
             return;
 
@@ -147,6 +159,23 @@ public sealed partial class MainWindow : Window
     }
 
     void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
+
+    // The installer replaces this process. A separate command waits, installs silently, then starts Task Widget again.
+    void FinishUpdate()
+    {
+        if (finishing || Model.InstallerPath is not string installer || Environment.ProcessPath is not string app)
+            return;
+
+        finishing = true;
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = "/c ping 127.0.0.1 -n 3 >nul & \"" + installer + "\" /VERYSILENT /NORESTART & start \"\" \"" + app + "\"",
+            CreateNoWindow = true,
+            UseShellExecute = false,
+        });
+        Close();
+    }
 
     void Capture_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {

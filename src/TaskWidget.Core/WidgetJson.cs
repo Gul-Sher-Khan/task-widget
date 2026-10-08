@@ -25,6 +25,11 @@ sealed class SettingsFile
     public int SchemaVersion { get; set; }
     public bool Docked { get; set; }
     public int RowsBeforeScrolling { get; set; } = 8;
+    public bool CheckForUpdatesAutomatically { get; set; } = true;
+    public DateTimeOffset? LastUpdateCheck { get; set; }
+    public string AvailableVersion { get; set; } = "";
+    public string UpdateResult { get; set; } = "";
+    public string InstallerUrl { get; set; } = "";
 }
 
 [JsonSourceGenerationOptions(

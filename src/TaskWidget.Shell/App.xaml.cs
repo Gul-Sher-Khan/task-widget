@@ -12,7 +12,7 @@ public partial class App : Application
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TaskWidget");
-        var window = new MainWindow(new AppModel(folder, new SystemClock()));
+        var window = new MainWindow(new AppModel(folder, new SystemClock(), http: new HttpClientHandler()));
         window.Activate();
     }
 }
