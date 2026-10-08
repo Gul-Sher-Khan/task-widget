@@ -180,6 +180,7 @@ public sealed partial class AppModel
         var json = JsonSerializer.Serialize(record, WidgetJsonContext.Default.TokenFile);
         SwapIn(tokenPath, protector.Protect(Encoding.UTF8.GetBytes(json)));
         settingsFile.WelcomeRetired = true;
+        accessToken = record.AccessToken;
         HasConnection = true;
         SignInStatus = "";
         SignInCause = "";
@@ -282,21 +283,38 @@ public sealed partial class AppModel
             return false;
         }
 
-        if (!ListsAModel(body))
+        var models = ReadModels(body);
+        if (models.Count == 0)
         {
             RejectPlan();
             return false;
         }
 
+        settingsFile.Models = models;
+        settingsFile.ModelsCachedAt = clock.UtcNow;
         return true;
     }
 
-    static bool ListsAModel(string body)
+    static List<CachedModel> ReadModels(string body)
     {
         using var doc = JsonDocument.Parse(body);
-        return doc.RootElement.TryGetProperty("models", out var models)
-            && models.ValueKind == JsonValueKind.Array
-            && models.GetArrayLength() > 0;
+        if (!doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array)
+            return [];
+
+        var list = new List<CachedModel>();
+        foreach (var item in models.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+                continue;
+            if (!item.TryGetProperty("slug", out var slug) || slug.GetString() is not { Length: > 0 } name)
+                continue;
+            var priority = 0;
+            if (item.TryGetProperty("priority", out var value) && value.TryGetInt32(out var number))
+                priority = number;
+            list.Add(new CachedModel { Slug = name, Priority = priority });
+        }
+
+        return list;
     }
 
     void FailSignIn(string cause)

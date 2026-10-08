@@ -83,7 +83,7 @@ public sealed class SignInTests
             Assert.True(again.ShowEmptyHotkey);
 
             again.UpdateDraft("buy milk");
-            again.CommitCapture();
+            await again.CommitCapture();
             againClock.Advance(TimeSpan.FromMilliseconds(300));
 
             Assert.Equal("buy milk", Assert.Single(again.Tasks).Title);
