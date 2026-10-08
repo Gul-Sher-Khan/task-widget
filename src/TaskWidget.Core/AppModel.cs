@@ -45,6 +45,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     int dirty;
     int disposed;
     bool loading;
+    bool overFullScreen;
     int rowsBeforeScrolling = 8;
     bool startWithWindows;
 
@@ -92,6 +93,12 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool Attention { get; set; }
 
+    [ObservableProperty]
+    public partial bool Raised { get; private set; }
+
+    [ObservableProperty]
+    public partial bool FullScreenApp { get; private set; }
+
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
     public ObservableCollection<TaskRow> DoneTasks { get; } = [];
@@ -100,6 +107,12 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public partial bool ShowingDone { get; private set; }
 
     public ObservableCollection<TaskRow> VisibleTasks => ShowingDone ? DoneTasks : Tasks;
+
+    public bool ShowDock => Docked && !Raised && !FullScreenApp;
+
+    public bool ShowWidget => !Docked || Raised;
+
+    public event Action? RaiseRequested;
 
     public int OpenTaskCount => Tasks.Count;
 
@@ -415,9 +428,11 @@ public void Move(TaskRow task, int index)
 
     public void Dock()
     {
-        if (Docked)
-            return;
-        Docked = true;
+        overFullScreen = false;
+        if (!Docked)
+            Docked = true;
+        if (Raised)
+            Raised = false;
     }
 
     public void Expand()
@@ -425,6 +440,41 @@ public void Move(TaskRow task, int index)
         if (!Docked)
             return;
         Docked = false;
+    }
+
+    public void SetFullScreenApp(bool present) => FullScreenApp = present;
+
+    // Brings the Widget forward. A second call asks the shell to raise again.
+    // Over a full-screen app the Dock stays put and the Widget leaves on commit, Esc, or deactivate.
+    public void Raise()
+    {
+        if (FullScreenApp)
+            overFullScreen = true;
+        else if (Docked)
+            Expand();
+
+        if (Raised)
+        {
+            RaiseRequested?.Invoke();
+            return;
+        }
+
+        Raised = true;
+    }
+
+    public bool Escape()
+    {
+        if (!overFullScreen)
+            return false;
+
+        DismissRaised();
+        return true;
+    }
+
+    public void NoteDeactivated()
+    {
+        if (Raised)
+            DismissRaised();
     }
 
     public void CommitCapture()
@@ -439,6 +489,15 @@ public void Move(TaskRow task, int index)
 
 Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
+        if (overFullScreen)
+            DismissRaised();
+    }
+
+    void DismissRaised()
+    {
+        overFullScreen = false;
+        if (Raised)
+            Raised = false;
     }
 
     public void Tick(TaskRow task)
@@ -626,7 +685,28 @@ public void MoveTo(int from, int to)
 
     partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
 
-    partial void OnDockedChanged(bool value) => MarkDirty();
+    partial void OnDockedChanged(bool value)
+    {
+        MarkDirty();
+        OnPropertyChanged(nameof(ShowDock));
+        OnPropertyChanged(nameof(ShowWidget));
+    }
+
+    partial void OnRaisedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowDock));
+        OnPropertyChanged(nameof(ShowWidget));
+    }
+
+    partial void OnFullScreenAppChanged(bool value)
+    {
+        if (value && Raised)
+            overFullScreen = true;
+        else if (!value)
+            overFullScreen = false;
+        OnPropertyChanged(nameof(ShowDock));
+        OnPropertyChanged(nameof(ShowWidget));
+    }
 
     void RaiseSignInBindings()
     {

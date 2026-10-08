@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
     RectInt32 fromRect;
     RectInt32 toRect;
     Action? animDone;
+    readonly DesktopLayer desktop;
 
     public MainWindow(AppModel model)
     {
@@ -57,6 +58,9 @@ public sealed partial class MainWindow : Window
         presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
 
+        desktop = new DesktopLayer(this, Model, Reanchor);
+        AppWindow.Closing += (_, _) => desktop.AllowClose();
+
         if (Model.Docked)
         {
             Root.Visibility = Visibility.Collapsed;
@@ -64,6 +68,7 @@ public sealed partial class MainWindow : Window
         }
 
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
+        Host.PreviewKeyDown += Host_PreviewKeyDown;
         List.PreviewKeyDown += List_PreviewKeyDown;
         List.RightTapped += List_RightTapped;
         List.DragItemsStarting += List_DragItemsStarting;
@@ -72,10 +77,15 @@ public sealed partial class MainWindow : Window
         ApplyUndoMotion();
         Host.SizeChanged += (_, _) => OnHostSize();
         Model.PropertyChanged += OnModelPropertyChanged;
+        Model.RaiseRequested += OnRaiseAgain;
+        desktop.Deactivated += OnShellDeactivated;
         Closed += (_, _) =>
         {
             Model.PropertyChanged -= OnModelPropertyChanged;
+            Model.RaiseRequested -= OnRaiseAgain;
+            desktop.Deactivated -= OnShellDeactivated;
             CompositionTarget.Rendering -= Tick;
+            desktop.Dispose();
             mica?.Dispose();
             Model.Dispose();
         };
@@ -83,7 +93,7 @@ public sealed partial class MainWindow : Window
 
     public AppModel Model { get; }
 
-void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
+    void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
 
     void Check_Click(object sender, RoutedEventArgs e)
     {
@@ -92,6 +102,8 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
     }
 
     void Undo_Click(object sender, RoutedEventArgs e) => Model.Undo();
+
+    public void Raise() => Model.Raise();
 
     void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -235,13 +247,123 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
 
     void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AppModel.Docked) || !placed)
+        if (!placed)
             return;
 
-        if (Model.Docked)
-            PlayToDock();
-        else
+        if (e.PropertyName == nameof(AppModel.Docked))
+        {
+            if (Model.Docked)
+                PlayToDock();
+            else
+                PlayToWidget();
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppModel.Raised))
+        {
+            if (Model.Raised)
+                OnRaised();
+            else
+                OnDismissed();
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppModel.FullScreenApp))
+            OnFullScreenChanged();
+    }
+
+    void Host_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Escape && Model.Escape())
+            e.Handled = true;
+    }
+
+    void OnRaised()
+    {
+        desktop.BringToFront(Model.FullScreenApp);
+        if (Model.Docked && !driving)
             PlayToWidget();
+        Capture.Focus(FocusState.Programmatic);
+    }
+
+    void OnRaiseAgain()
+    {
+        if (!placed)
+            return;
+        desktop.BringToFront(Model.FullScreenApp);
+        Capture.Focus(FocusState.Programmatic);
+    }
+
+    void OnDismissed()
+    {
+        if (Model.Docked)
+        {
+            if (driving)
+                return;
+            if (Model.FullScreenApp)
+            {
+                Root.Visibility = Visibility.Collapsed;
+                DockRoot.Visibility = Visibility.Visible;
+                current = DockHeightDip;
+                Place(DockClient());
+                desktop.ApplyDock(yieldFocus: false);
+                desktop.Hide();
+                desktop.YieldToFullScreen();
+                return;
+            }
+
+            PlayToDock();
+            return;
+        }
+
+        desktop.PinToBottom();
+        if (Model.FullScreenApp)
+            desktop.YieldToFullScreen();
+    }
+
+    void OnFullScreenChanged()
+    {
+        if (driving)
+            return;
+
+        if (Model.Raised)
+        {
+            desktop.BringToFront(Model.FullScreenApp);
+            return;
+        }
+
+        if (!Model.Docked)
+            return;
+
+        if (Model.FullScreenApp)
+            desktop.Hide();
+        else
+        {
+            Place(DockClient());
+            desktop.ApplyDock(yieldFocus: false);
+            desktop.ShowNoActivate();
+        }
+    }
+
+    void OnShellDeactivated()
+    {
+        if (Model.Raised)
+            Model.NoteDeactivated();
+        else if (!Model.Docked)
+            desktop.PinToBottom();
+    }
+
+    void Reanchor()
+    {
+        if (!placed || Host.XamlRoot is null)
+            return;
+
+        if (Model.Docked && !Model.Raised)
+            Place(DockClient());
+        else
+            Place(WidgetClient(current > 0 ? current : widgetHeight));
+
+        desktop.ReapplyZOrder();
     }
 
     void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
@@ -277,13 +399,18 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
                 DockRoot.Visibility = Visibility.Visible;
                 current = DockHeightDip;
                 Place(DockClient());
+                desktop.ApplyDock(yieldFocus: true);
+                desktop.CheckFullScreen();
+                if (!Model.ShowDock)
+                    desktop.Hide();
                 return;
             }
 
             current = Root.ActualHeight;
             widgetHeight = current;
             Place(WidgetClient(current));
-            Capture.Focus(FocusState.Programmatic);
+            desktop.PinToBottom();
+            desktop.CheckFullScreen();
             return;
         }
 
@@ -326,6 +453,9 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         DockRoot.Visibility = Visibility.Visible;
         AnimateContent(DockRoot, show: true, Ms("DockInMs"));
         SpringIn(DockRoot);
+        desktop.ApplyDock(yieldFocus: true);
+        if (!Model.ShowDock)
+            desktop.Hide();
         driving = false;
     }
 
@@ -335,6 +465,7 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
             return;
 
         driving = true;
+        desktop.PrepareWidgetChrome();
         Activate();
         AnimateContent(DockRoot, show: false, Ms("DockOutMs"));
         Root.Visibility = Visibility.Visible;
@@ -348,6 +479,9 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         {
             DockRoot.Visibility = Visibility.Collapsed;
             driving = false;
+            // Commit or Esc during the unroll still has to send a temporary Widget away.
+            if (!Model.Raised && Model.Docked)
+                OnDismissed();
         });
         Capture.Focus(FocusState.Programmatic);
     }
