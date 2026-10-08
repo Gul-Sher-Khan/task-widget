@@ -34,4 +34,10 @@ public static class Row
     };
 
     public static string CountText(int count) => count.ToString();
+
+    public static Visibility WhenPositive(int count) =>
+        count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public static Visibility When(bool shown) =>
+        shown ? Visibility.Visible : Visibility.Collapsed;
 }

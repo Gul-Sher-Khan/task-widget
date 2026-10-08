@@ -1,19 +1,27 @@
 using System.Collections.ObjectModel;
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Win32;
+
+[assembly: SupportedOSPlatform("windows")]
 
 namespace TaskWidget.Core;
 
 public sealed partial class AppModel : ObservableObject, IDisposable
 {
     public static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(300);
+    public const string RunValueName = "Task Widget";
+    public const string DefaultRunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    public const string TokenFileName = "tokens.bin";
 
     readonly IClock clock;
     readonly string tasksPath;
     readonly string settingsPath;
     readonly string tokenPath;
+    readonly string runKeyPath;
     readonly HttpClient? httpClient;
     readonly IBrowserLauncher? browser;
     readonly IDataProtector? protector;
@@ -24,19 +32,27 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     long saveTimer;
     int dirty;
     int disposed;
+    bool loading;
+    int rowsBeforeScrolling = 8;
+    bool startWithWindows;
 
-    public const string TokenFileName = "tokens.bin";
+    public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
+        : this(dataFolder, clock, null, null, null, runKeyPath)
+    {
+    }
 
     public AppModel(
         string dataFolder,
         IClock clock,
-        HttpMessageHandler? http = null,
-        IBrowserLauncher? browser = null,
-        IDataProtector? protector = null)
+        HttpMessageHandler? http,
+        IBrowserLauncher? browser,
+        IDataProtector? protector,
+        string? runKeyPath = null)
     {
         this.clock = clock;
         this.browser = browser;
         this.protector = protector;
+        this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
         if (http is not null)
             httpClient = new HttpClient(http, disposeHandler: false);
         Directory.CreateDirectory(dataFolder);
@@ -46,17 +62,33 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         Tasks.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(OpenTaskCount));
+            OnPropertyChanged(nameof(OpenHighCount));
+            OnPropertyChanged(nameof(OpenMediumCount));
+            OnPropertyChanged(nameof(OpenLowCount));
             OnPropertyChanged(nameof(ShowEmptyHotkey));
         };
         Load();
+        startWithWindows = RunValueExists();
     }
 
     [ObservableProperty]
     public partial string CaptureText { get; set; } = "";
 
+    [ObservableProperty]
+    public partial bool Docked { get; private set; }
+
+    [ObservableProperty]
+    public partial bool Attention { get; set; }
+
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
     public int OpenTaskCount => Tasks.Count;
+
+    public int OpenHighCount => Tasks.Count(task => task.Priority == Priority.High);
+
+    public int OpenMediumCount => Tasks.Count(task => task.Priority == Priority.Medium);
+
+    public int OpenLowCount => Tasks.Count(task => task.Priority == Priority.Low);
 
     public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
 
@@ -89,7 +121,82 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public event Action? BringToFront;
 
+    public int RowsBeforeScrolling
+    {
+        get => rowsBeforeScrolling;
+        set
+        {
+            value = ClampRows(value);
+            if (rowsBeforeScrolling == value)
+                return;
+
+            rowsBeforeScrolling = value;
+            OnPropertyChanged(nameof(RowsBeforeScrolling));
+            OnPropertyChanged(nameof(RowsBeforeScrollingValue));
+            OnPropertyChanged(nameof(ListMaxHeight));
+            MarkDirty();
+        }
+    }
+
+    public double ListMaxHeight => rowsBeforeScrolling * 37d + 4d;
+
+    public double RowsBeforeScrollingValue
+    {
+        get => rowsBeforeScrolling;
+        set => RowsBeforeScrolling = (int)value;
+    }
+
+    public string VersionLine
+    {
+        get
+        {
+            var version = typeof(AppModel).Assembly.GetName().Version!;
+            return "Task Widget " + version.Major + "." + version.Minor + "." + version.Build;
+        }
+    }
+
+    public string GitHubUrl => "https://github.com/Gul-Sher-Khan/task-widget";
+
+    public string PrivacyUrl => "https://github.com/Gul-Sher-Khan/task-widget#privacy";
+
+    [ObservableProperty]
+    public partial bool SettingsOpen { get; set; }
+
+    public bool ShowingTasks => !SettingsOpen;
+
+    public void ToggleSettings() => SettingsOpen = !SettingsOpen;
+
+    partial void OnSettingsOpenChanged(bool value) => OnPropertyChanged(nameof(ShowingTasks));
+
+    public bool StartWithWindows
+    {
+        get => startWithWindows;
+        set
+        {
+            if (startWithWindows == value)
+                return;
+
+            startWithWindows = value;
+            ApplyRunValue();
+            OnPropertyChanged(nameof(StartWithWindows));
+        }
+    }
+
     public void UpdateDraft(string text) => CaptureText = text;
+
+    public void Dock()
+    {
+        if (Docked)
+            return;
+        Docked = true;
+    }
+
+    public void Expand()
+    {
+        if (!Docked)
+            return;
+        Docked = false;
+    }
 
     public void CommitCapture()
     {
@@ -123,6 +230,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
 
+    partial void OnDockedChanged(bool value) => MarkDirty();
+
     void RaiseSignInBindings()
     {
         OnPropertyChanged(nameof(SignInIdle));
@@ -140,11 +249,11 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     void MarkDirty()
     {
-        if (Volatile.Read(ref disposed) != 0)
+        if (loading || Volatile.Read(ref disposed) != 0)
             return;
 
         var tasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
-        var settings = JsonSerializer.Serialize(settingsFile, WidgetJsonContext.Default.SettingsFile);
+        var settings = JsonSerializer.Serialize(SnapshotSettings(), WidgetJsonContext.Default.SettingsFile);
         lock (gate)
         {
             pendingTasks = tasks;
@@ -169,6 +278,16 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }).ToList(),
     };
 
+    SettingsFile SnapshotSettings() => new()
+    {
+        SchemaVersion = 1,
+        Docked = Docked,
+        RowsBeforeScrolling = rowsBeforeScrolling,
+        WelcomeRetired = settingsFile.WelcomeRetired,
+        ExtAgentHostId = settingsFile.ExtAgentHostId,
+        IssuedClientId = settingsFile.IssuedClientId,
+    };
+
     static string PriorityName(Priority priority) => priority switch
     {
         Priority.High => "high",
@@ -179,11 +298,22 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     void Load()
     {
-        LoadSettings();
-        LoadConnection();
-        if (!File.Exists(tasksPath))
-            return;
+        loading = true;
+        try
+        {
+            if (File.Exists(tasksPath))
+                LoadTasks();
+            LoadSettings();
+            LoadConnection();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
 
+    void LoadTasks()
+    {
         var file = JsonSerializer.Deserialize(File.ReadAllText(tasksPath), WidgetJsonContext.Default.TaskFile);
         if (file is null)
             return;
@@ -205,20 +335,26 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (!File.Exists(settingsPath))
             return;
 
+        SettingsFile? file;
         try
         {
-            var file = JsonSerializer.Deserialize(File.ReadAllText(settingsPath), WidgetJsonContext.Default.SettingsFile);
-            if (file is not null)
-                settingsFile = file;
+            file = JsonSerializer.Deserialize(File.ReadAllText(settingsPath), WidgetJsonContext.Default.SettingsFile);
         }
         catch (JsonException)
         {
-            settingsFile = new SettingsFile { SchemaVersion = 1 };
+            return;
         }
         catch (IOException)
         {
-            settingsFile = new SettingsFile { SchemaVersion = 1 };
+            return;
         }
+
+        if (file is null)
+            return;
+
+        settingsFile = file;
+        Docked = file.Docked;
+        rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
     }
 
     void LoadConnection()
@@ -244,6 +380,23 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         {
             HasConnection = false;
         }
+    }
+
+    static int ClampRows(int value) => Math.Clamp(value, 4, 15);
+
+    bool RunValueExists()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(runKeyPath);
+        return key?.GetValue(RunValueName) is not null;
+    }
+
+    void ApplyRunValue()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(runKeyPath);
+        if (startWithWindows)
+            key.SetValue(RunValueName, "\"" + Environment.ProcessPath + "\"");
+        else
+            key.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
 
     static Priority ParsePriority(string value) => value switch

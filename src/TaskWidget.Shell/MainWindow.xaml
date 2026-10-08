@@ -12,6 +12,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Padding="16,10,8,4" ColumnSpacing="2">
@@ -22,30 +23,36 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                     <TextBlock Text="Tasks" FontSize="15" FontWeight="SemiBold" />
                     <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenTaskCount), Mode=OneWay}"
                                Foreground="{ThemeResource FaintTextBrush}" FontSize="13" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="-8,0,0,0" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}">
+                    <Button Style="{StaticResource Bare}" Width="30" Height="30" Click="Settings_Click" ToolTipService.ToolTip="Back to Tasks">
+                        <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                    </Button>
+                    <TextBlock Text="Settings" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
                 <Button Grid.Column="1" Style="{StaticResource Bare}" Width="30" Height="30" Visibility="Collapsed"
                         ToolTipService.ToolTip="Re-sort by Priority and Effort">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
                 </Button>
                 <Button Grid.Column="2" Style="{StaticResource Bare}" Width="30" Height="30"
-                        ToolTipService.ToolTip="Done view">
+                        ToolTipService.ToolTip="Done view" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                     <FontIcon Glyph="&#xE81C;" FontSize="14" />
                 </Button>
-                <Button Grid.Column="3" Style="{StaticResource Bare}" Width="30" Height="30"
-                        ToolTipService.ToolTip="Settings">
+                <Button Grid.Column="3" Style="{StaticResource Bare}" Width="30" Height="30" Click="Settings_Click"
+                        ToolTipService.ToolTip="Settings" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                     <FontIcon Glyph="&#xE713;" FontSize="14" />
                 </Button>
                 <Button Grid.Column="4" Style="{StaticResource Bare}" Width="30" Height="30"
-                        ToolTipService.ToolTip="Collapse to the Dock">
+                        Click="Collapse_Click" ToolTipService.ToolTip="Collapse to the Dock">
                     <FontIcon Glyph="&#xE70E;" FontSize="13" />
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1" Margin="12,4,12,6">
+            <Grid Grid.Row="1" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                 <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
                          PlaceholderText="Capture a thought…"
@@ -55,11 +62,12 @@
 
             <local:Welcome Grid.Row="2" Card="True" local:Fx.Enter="True"
                            Model="{x:Bind Model}"
-                           Visibility="{x:Bind Model.ShowWelcome, Mode=OneWay}" />
+                           Visibility="{x:Bind local:F.Both(Model.ShowWelcome, Model.ShowingTasks), Mode=OneWay}" />
 
-            <ListView x:Name="List" Grid.Row="3" Padding="6,0,6,0"
+            <ListView x:Name="List" Grid.Row="3" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
                       ItemsSource="{x:Bind Model.Tasks, Mode=OneWay}"
-                      ItemContainerStyle="{StaticResource PlainRow}">
+                      ItemContainerStyle="{StaticResource PlainRow}"
+                      Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
                         <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
@@ -95,7 +103,51 @@
 
             <local:Welcome Grid.Row="4" Card="False"
                            Model="{x:Bind Model}"
-                           Visibility="{x:Bind Model.ShowEmptyHotkey, Mode=OneWay}" />
+                           Visibility="{x:Bind local:F.Both(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
+
+            <Grid x:Name="SettingsHost" Grid.Row="5" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
+        </Grid>
+
+        <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
+              Background="Transparent" Visibility="Collapsed" PointerPressed="Dock_PointerPressed">
+            <Grid Padding="14,0,16,0" ColumnSpacing="10" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="18" Height="18">
+                    <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                    <ProgressRing Width="16" Height="16" IsActive="False" Visibility="Collapsed" />
+                </Grid>
+                <TextBlock Grid.Column="1" Text="Capture a thought…" FontSize="13.5"
+                           Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="Interpreting…" FontSize="13.5"
+                           Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="5"
+                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenHighCount), Mode=OneWay}">
+                        <local:PriorityBadge Priority="High" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenHighCount), Mode=OneWay}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5"
+                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenMediumCount), Mode=OneWay}">
+                        <local:PriorityBadge Priority="Medium" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenMediumCount), Mode=OneWay}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5"
+                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenLowCount), Mode=OneWay}">
+                        <local:PriorityBadge Priority="Low" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenLowCount), Mode=OneWay}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+            <Ellipse Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                     Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                     Visibility="{x:Bind local:Row.When(Model.Attention), Mode=OneWay}" />
         </Grid>
     </Grid>
 </Window>
