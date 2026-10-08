@@ -178,7 +178,11 @@ sealed class ManualClock : IClock
     long now;
     long next;
 
-    public DateTimeOffset UtcNow { get; private set; } = new(2026, 10, 8, 0, 0, 0, TimeSpan.Zero);
+    public DateTimeOffset Now { get; private set; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    public DateTimeOffset UtcNow => Now;
+
+    public void Set(DateTimeOffset time) => Now = time;
 
     public long Schedule(TimeSpan delay, Action callback)
     {
@@ -192,7 +196,7 @@ sealed class ManualClock : IClock
     public void Advance(TimeSpan by)
     {
         now += (long)by.TotalMilliseconds;
-        UtcNow = UtcNow.Add(by);
+        Now = Now.Add(by);
         var due = pending.Where(item => item.Value.Due <= now).Select(item => item.Key).ToArray();
         var callbacks = new List<Action>(due.Length);
         foreach (var id in due)

@@ -27,6 +27,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     readonly IDataProtector? protector;
     readonly object gate = new();
     SettingsFile settingsFile = new() { SchemaVersion = 1 };
+    readonly Dictionary<TaskRow, DateTimeOffset> created = [];
+    readonly Dictionary<TaskRow, int> spoken = [];
     string? pendingTasks;
     string? pendingSettings;
     long saveTimer;
@@ -182,6 +184,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
     }
 
+    [ObservableProperty]
+    public partial bool HasManualPositions { get; private set; }
+
     public void UpdateDraft(string text) => CaptureText = text;
 
     public void Dock()
@@ -208,8 +213,42 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (title.Length == 0)
             return;
 
-        Tasks.Add(new TaskRow(title, Priority.Medium, Effort.Short, ""));
+        Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
+    }
+
+    public void MoveTo(int from, int to)
+    {
+        if (from == to || from < 0 || to < 0 || from >= Tasks.Count || to >= Tasks.Count)
+            return;
+
+        Tasks.Move(from, to);
+        HasManualPositions = true;
+        MarkDirty();
+    }
+
+    // The list already moved the row (a drag). Record that, without moving it again.
+    public void AcceptReorder(int from, int to)
+    {
+        if (from == to || to < 0)
+            return;
+
+        HasManualPositions = true;
+        MarkDirty();
+    }
+
+    public void ReSort()
+    {
+        var sorted = Tasks.OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var current = Tasks.IndexOf(sorted[i]);
+            if (current != i)
+                Tasks.Move(current, i);
+        }
+
+        HasManualPositions = false;
+        MarkDirty();
     }
 
     public void Dispose()
@@ -269,12 +308,15 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     {
         SchemaVersion = 1,
         Draft = CaptureText,
+        Manual = HasManualPositions,
         Tasks = Tasks.Select(task => new TaskRecord
         {
             Title = task.Title,
             Details = task.Details,
             Priority = PriorityName(task.Priority),
             Effort = EffortName(task.Effort),
+            Created = CreatedOf(task),
+            Spoken = SpokenOf(task),
         }).ToList(),
     };
 
@@ -320,14 +362,54 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
         foreach (var record in file.Tasks ?? [])
         {
-            Tasks.Add(new TaskRow(
+            var row = new TaskRow(
                 record.Title,
                 ParsePriority(record.Priority),
                 ParseEffort(record.Effort),
-                record.Details));
+                record.Details);
+            created[row] = record.Created;
+            spoken[row] = record.Spoken;
+            Tasks.Add(row);
         }
 
+        HasManualPositions = file.Manual;
         CaptureText = file.Draft;
+    }
+
+    // New, edited and un-completed Tasks all land here.
+    void Place(TaskRow task, DateTimeOffset at, int spokenIndex)
+    {
+        created[task] = at;
+        spoken[task] = spokenIndex;
+        Tasks.Insert(IndexFor(task), task);
+    }
+
+    int IndexFor(TaskRow task)
+    {
+        for (var i = 0; i < Tasks.Count; i++)
+        {
+            if (CompareRank(task, Tasks[i]) < 0)
+                return i;
+        }
+
+        return Tasks.Count;
+    }
+
+    int CompareRank(TaskRow a, TaskRow b)
+    {
+        var byPriority = a.Priority.CompareTo(b.Priority);
+        if (byPriority != 0)
+            return byPriority;
+
+        var byEffort = a.Effort.CompareTo(b.Effort);
+        if (byEffort != 0)
+            return byEffort;
+
+        var byAge = CreatedOf(a).CompareTo(CreatedOf(b));
+        if (byAge != 0)
+            return byAge;
+
+        return SpokenOf(a).CompareTo(SpokenOf(b));
     }
 
     void LoadSettings()
@@ -414,6 +496,10 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         "long" => Effort.Long,
         _ => throw new InvalidDataException($"Unknown effort \"{value}\"."),
     };
+
+    DateTimeOffset CreatedOf(TaskRow task) => created.TryGetValue(task, out var at) ? at : default;
+
+    int SpokenOf(TaskRow task) => spoken.TryGetValue(task, out var index) ? index : 0;
 
     static string EffortName(Effort effort) => effort switch
     {

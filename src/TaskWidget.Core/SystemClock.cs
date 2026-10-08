@@ -6,6 +6,8 @@ public sealed class SystemClock : IClock
     readonly Dictionary<long, Timer> timers = [];
     long next;
 
+    public DateTimeOffset Now => DateTimeOffset.UtcNow;
+
     public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
 
     public long Schedule(TimeSpan delay, Action callback)
