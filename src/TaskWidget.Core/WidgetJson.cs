@@ -17,6 +17,8 @@ sealed class TaskRecord
     public string Details { get; set; } = "";
     public string Priority { get; set; } = "";
     public string Effort { get; set; } = "";
+    public bool UserSetPriority { get; set; }
+    public bool UserSetEffort { get; set; }
 public DateTimeOffset? Created { get; set; }
     public DateTimeOffset? CreatedAt { get; set; }
     public int Spoken { get; set; }

@@ -93,8 +93,96 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
 
     void Undo_Click(object sender, RoutedEventArgs e) => Model.Undo();
 
+    void List_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is TaskRow { IsEditing: false } task)
+            Model.ToggleDetails(task);
+    }
+
+    void Title_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.BeginTitleEdit(task);
+        e.Handled = true;
+    }
+
+    void Effort_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.CycleEffort(task);
+    }
+
+    void Priority_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.CyclePriority(task);
+    }
+
+    void Edit_Loaded(object sender, RoutedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        box.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
+        {
+            if (box.Visibility != Visibility.Visible || box.DataContext is not TaskRow task)
+                return;
+            box.Text = task.Title;
+            box.DispatcherQueue.TryEnqueue(() =>
+            {
+                box.Focus(FocusState.Programmatic);
+                box.SelectAll();
+            });
+        });
+        box.KeyDown += (_, args) =>
+        {
+            if (box.DataContext is not TaskRow task)
+                return;
+            if (args.Key == VirtualKey.Enter)
+            {
+                Model.EditTitle(task, box.Text);
+                args.Handled = true;
+            }
+            else if (args.Key == VirtualKey.Escape)
+            {
+                Model.CancelTitleEdit(task);
+                args.Handled = true;
+            }
+        };
+        box.LostFocus += (_, _) =>
+        {
+            if (box.DataContext is TaskRow { IsEditing: true } task)
+                Model.EditTitle(task, box.Text);
+        };
+    }
+
+    void Details_Loaded(object sender, RoutedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        if (box.DataContext is TaskRow task)
+            box.Text = task.Details;
+        box.LostFocus += (_, _) => CommitDetails(box);
+        box.KeyDown += (_, args) =>
+        {
+            if (args.Key != VirtualKey.Enter)
+                return;
+            var shift = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+            if (shift)
+                return;
+            CommitDetails(box);
+            args.Handled = true;
+        };
+    }
+
+    void CommitDetails(TextBox box)
+    {
+        if (box.DataContext is TaskRow { IsExpanded: true } task)
+            Model.EditDetails(task, box.Text);
+    }
+
     void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (List.XamlRoot is not null && FocusManager.GetFocusedElement(List.XamlRoot) is TextBox)
+            return;
+
         var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
         if (ctrl && List.SelectedIndex >= 0)
         {
@@ -123,6 +211,14 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
             case VirtualKey.Space:
                 Model.TickSelected();
                 break;
+            case VirtualKey.Enter:
+                Model.ExpandSelected();
+                break;
+            case VirtualKey.E:
+                if (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down))
+                    return;
+                Model.EditSelectedTitle();
+                break;
             case VirtualKey.Delete:
                 Model.DeleteSelected();
                 break;
@@ -138,6 +234,12 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskRow task)
             return;
 
+        var edit = new MenuFlyoutItem
+        {
+            Text = "Edit title",
+            Icon = new FontIcon { Glyph = "\uE70F" },
+        };
+        edit.Click += (_, _) => Model.BeginTitleEdit(task);
         var item = new MenuFlyoutItem
         {
             Text = "Delete",
@@ -145,6 +247,8 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         };
         item.Click += (_, _) => Model.Delete(task);
         var menu = new MenuFlyout();
+        menu.Items.Add(edit);
+        menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(item);
         menu.ShowAt(e.OriginalSource as FrameworkElement, e.GetPosition(e.OriginalSource as UIElement));
         e.Handled = true;
