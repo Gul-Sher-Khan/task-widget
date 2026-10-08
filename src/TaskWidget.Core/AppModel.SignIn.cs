@@ -23,7 +23,7 @@ public sealed partial class AppModel
     static readonly TimeSpan SignInTimeout = TimeSpan.FromMinutes(5);
 
     Loopback? loopback;
-    long signInTimer;
+    IDisposable? signInTimer;
     int signingIn;
     TaskCompletionSource? cancelWait;
 
@@ -46,7 +46,7 @@ public sealed partial class AppModel
         }
         finally
         {
-            clock.Cancel(signInTimer);
+            signInTimer?.Dispose();
             cancelWait = null;
             loopback?.Dispose();
             loopback = null;
@@ -99,7 +99,7 @@ public sealed partial class AppModel
         }
 
         var finished = await Task.WhenAny(accept, timedOut.Task, cancelled.Task);
-        clock.Cancel(signInTimer);
+        signInTimer?.Dispose();
 
         if (timedOut.Task.IsCompleted)
         {

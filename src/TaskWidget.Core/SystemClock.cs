@@ -3,39 +3,56 @@ namespace TaskWidget.Core;
 public sealed class SystemClock : IClock
 {
     readonly object gate = new();
-    readonly Dictionary<long, Timer> timers = [];
-    long next;
+    readonly List<Timer> timers = [];
 
     public DateTimeOffset Now => DateTimeOffset.UtcNow;
 
     public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
 
-    public long Schedule(TimeSpan delay, Action callback)
+    public IDisposable Schedule(TimeSpan delay, Action callback)
     {
-        var id = Interlocked.Increment(ref next);
-        var timer = new Timer(_ =>
+        var context = SynchronizationContext.Current;
+        var fired = 0;
+        Timer timer = null!;
+        timer = new Timer(_ =>
         {
-            if (CancelCore(id))
+            lock (gate)
+                timers.Remove(timer);
+            if (Interlocked.Exchange(ref fired, 1) != 0)
+                return;
+            if (context is null)
                 callback();
-        });
+            else
+                context.Post(_ => callback(), null);
+        }, null, delay, Timeout.InfiniteTimeSpan);
         lock (gate)
-            timers[id] = timer;
-        timer.Change(delay, Timeout.InfiniteTimeSpan);
-        return id;
+            timers.Add(timer);
+        return new Handle(this, timer, () => Interlocked.Exchange(ref fired, 1));
     }
 
-    public void Cancel(long id) => CancelCore(id);
-
-    bool CancelCore(long id)
+    public void Cancel()
     {
-        Timer? timer;
+        List<Timer> copy;
         lock (gate)
         {
-            if (!timers.Remove(id, out timer))
-                return false;
+            copy = [.. timers];
+            timers.Clear();
         }
 
+        foreach (var timer in copy)
+            timer.Dispose();
+    }
+
+    void Cancel(Timer timer, Action markFired)
+    {
+        markFired();
+        lock (gate)
+            timers.Remove(timer);
         timer.Dispose();
-        return true;
+    }
+
+    sealed class Handle(SystemClock clock, Timer timer, Action markFired) : IDisposable
+    {
+        public void Dispose() => clock.Cancel(timer, markFired);
     }
 }

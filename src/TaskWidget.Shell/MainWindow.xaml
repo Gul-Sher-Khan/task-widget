@@ -23,10 +23,14 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
-                    <TextBlock Text="Tasks" FontSize="15" FontWeight="SemiBold" />
+<StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
+                    <TextBlock Text="Tasks" FontSize="15" FontWeight="SemiBold"
+                               Visibility="{x:Bind local:Row.Unless(Model.ShowingDone), Mode=OneWay}" />
+                    <TextBlock Text="Done" FontSize="15" FontWeight="SemiBold"
+                               Visibility="{x:Bind local:Row.When(Model.ShowingDone), Mode=OneWay}" />
                     <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenTaskCount), Mode=OneWay}"
-                               Foreground="{ThemeResource FaintTextBrush}" FontSize="13" VerticalAlignment="Center" />
+                               Foreground="{ThemeResource FaintTextBrush}" FontSize="13" VerticalAlignment="Center"
+                               Visibility="{x:Bind local:Row.Unless(Model.ShowingDone), Mode=OneWay}" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="-8,0,0,0" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}">
                     <Button Style="{StaticResource Bare}" Width="30" Height="30" Click="Settings_Click" ToolTipService.ToolTip="Back to Tasks">
@@ -39,9 +43,14 @@
                         Visibility="{x:Bind local:Row.When(Model.HasManualPositions), Mode=OneWay}">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
                 </Button>
-                <Button Grid.Column="2" Style="{StaticResource Bare}" Width="30" Height="30"
+<Button Grid.Column="2" Style="{StaticResource Bare}" Width="30" Height="30" Click="Done_Click"
                         ToolTipService.ToolTip="Done view" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
-                    <FontIcon Glyph="&#xE81C;" FontSize="14" />
+                    <Grid>
+                        <FontIcon Glyph="&#xE81C;" FontSize="14"
+                                  Visibility="{x:Bind local:Row.Unless(Model.ShowingDone), Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE72B;" FontSize="14"
+                                  Visibility="{x:Bind local:Row.When(Model.ShowingDone), Mode=OneWay}" />
+                    </Grid>
                 </Button>
                 <Button Grid.Column="3" Style="{StaticResource Bare}" Width="30" Height="30" Click="Settings_Click"
                         ToolTipService.ToolTip="Settings" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
@@ -53,7 +62,7 @@
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
+<Grid Grid.Row="1" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
                 <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
                          PlaceholderText="Capture a thought…"
@@ -65,12 +74,21 @@
                            Model="{x:Bind Model}"
                            Visibility="{x:Bind local:F.Both(Model.ShowWelcome, Model.ShowingTasks), Mode=OneWay}" />
 
-            <ListView x:Name="List" Grid.Row="3" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
-                      ItemsSource="{x:Bind Model.Tasks, Mode=OneWay}"
-                      ItemContainerStyle="{StaticResource PlainRow}"
-                      SelectionMode="Single"
-                      CanDragItems="True" CanReorderItems="True" AllowDrop="True"
-                      Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
+            <Grid Grid.Row="3">
+                <ListView x:Name="List" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
+                          ItemsSource="{x:Bind Model.VisibleTasks, Mode=OneWay}"
+                          SelectedIndex="{x:Bind Model.SelectedIndex, Mode=TwoWay}"
+                          SelectionMode="Single"
+                          CanDragItems="True" CanReorderItems="True" AllowDrop="True"
+                          ItemContainerStyle="{StaticResource PlainRow}"
+                          Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
+                    <ListView.ItemContainerTransitions>
+                        <TransitionCollection>
+                            <AddDeleteThemeTransition />
+                            <RepositionThemeTransition />
+                            <ReorderThemeTransition />
+                        </TransitionCollection>
+                    </ListView.ItemContainerTransitions>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
                         <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
@@ -80,13 +98,25 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top">
-                                <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
+                            <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
+                                    Click="Check_Click">
+                                <Grid>
+                                    <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
+                                    <Ellipse Width="17" Height="17" Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                             Visibility="{x:Bind local:Row.When(IsStriking), Mode=OneWay}" />
+                                    <Ellipse Width="17" Height="17" Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                             Visibility="{x:Bind local:Row.When(IsDone), Mode=OneWay}" />
+                                    <FontIcon Glyph="&#xE73E;" FontSize="10" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                              Visibility="{x:Bind local:Row.When(IsStriking), Mode=OneWay}" />
+                                    <FontIcon Glyph="&#xE73E;" FontSize="10" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                              Visibility="{x:Bind local:Row.When(IsDone), Mode=OneWay}" />
+                                </Grid>
                             </Button>
 
-                            <StackPanel Grid.Column="1" Spacing="4">
-                                <TextBlock Text="{x:Bind Title, Mode=OneTime}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
-                                           TextTrimming="CharacterEllipsis" />
+                            <StackPanel Grid.Column="1" Spacing="4" Opacity="{x:Bind local:Row.DoneFade(IsDone, IsStriking), Mode=OneWay}">
+                                <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextDecorations="{x:Bind local:Row.Strike(IsStriking), Mode=OneWay}" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Top">
@@ -102,7 +132,28 @@
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
-            </ListView>
+                </ListView>
+
+                <Border x:Name="UndoPill" CornerRadius="16" Padding="14,6,6,6"
+                        HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4"
+                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+                        BorderBrush="{ThemeResource HairlineBrush}" BorderThickness="1"
+                        Visibility="{x:Bind local:Row.When(Model.UndoVisible), Mode=OneWay}">
+                    <Border.Shadow>
+                        <ThemeShadow />
+                    </Border.Shadow>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{x:Bind Model.UndoText, Mode=OneWay}" VerticalAlignment="Center" FontSize="12.5" />
+                        <Button Click="Undo_Click" Padding="10,3,10,4" CornerRadius="12" FontSize="12.5"
+                                Style="{ThemeResource AccentButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE7A7;" FontSize="12" />
+                                <TextBlock Text="Undo" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <local:Welcome Grid.Row="4" Card="False"
                            Model="{x:Bind Model}"
