@@ -1,6 +1,5 @@
-<!-- PROTOTYPE · Settings, shown inside the Widget in place of the list. Connection follows "LLM provider strategy and
-     model choice": exactly one active Connection, the other's details kept; ChatGPT model override; Groq / OpenRouter /
-     Custom presets for an API key. Sign-in, key tests and the hotkey recorder are faked. -->
+<!-- PROTOTYPE · Settings, shown inside the Widget in place of the list. Connection: ChatGPT only (ADR 0003; round 4
+     removed the API-key option), with a model override. Sign-in and the hotkey recorder are faked. -->
 <UserControl
     x:Class="Look.SettingsPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -34,13 +33,8 @@
             <TextBlock Text="Connection" Style="{StaticResource Section}" Margin="4,4,0,6" />
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="10">
-                    <SelectorBar x:Name="ConnBar" SelectionChanged="ConnBar_SelectionChanged" Margin="-4,-4,0,0">
-                        <SelectorBarItem Text="ChatGPT" />
-                        <SelectorBarItem Text="API key" />
-                    </SelectorBar>
-
                     <!-- ChatGPT, signed in -->
-                    <StackPanel Spacing="10" Visibility="{x:Bind local:F.Both(P.IsChatGpt, P.SignedIn), Mode=OneWay}">
+                    <StackPanel Spacing="10" Visibility="{x:Bind P.SignedIn, Mode=OneWay}">
                         <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -60,43 +54,18 @@
                         </Grid>
                         <ComboBox Header="Model" ItemsSource="{x:Bind Models}" SelectedIndex="{x:Bind P.Model, Mode=TwoWay}"
                                   HorizontalAlignment="Stretch" FontSize="13" />
-                        <TextBlock Style="{StaticResource Caption}" Text="Captures use your ChatGPT plan. Automatic picks the fastest model your plan offers." />
                     </StackPanel>
 
-                    <!-- ChatGPT, signed out -->
-                    <StackPanel Spacing="8" Visibility="{x:Bind local:F.Both(P.IsChatGpt, P.SignedOut), Mode=OneWay}">
+                    <!-- ChatGPT, signed out: ROUND 4 · the shared sign-in flow -->
+                    <StackPanel Spacing="8" Visibility="{x:Bind P.SignedOut, Mode=OneWay}">
                         <TextBlock Text="Not signed in" FontSize="13" />
-                        <Button Click="SignIn_Click" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,7,12,8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <ProgressRing Width="14" Height="14" IsActive="{x:Bind P.Testing, Mode=OneWay}" Visibility="{x:Bind P.Testing, Mode=OneWay}"
-                                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                <TextBlock Text="Sign in with ChatGPT" />
-                            </StackPanel>
-                        </Button>
+                        <local:SignInBlock />
                         <TextBlock Style="{StaticResource Caption}" Text="Opens your browser. Task Widget never sees your password." />
                     </StackPanel>
 
-                    <!-- API key -->
-                    <StackPanel Spacing="10" Visibility="{x:Bind P.IsApiKey, Mode=OneWay}">
-                        <ComboBox Header="Provider" ItemsSource="{x:Bind Providers}" SelectedIndex="{x:Bind P.Provider, Mode=TwoWay}"
-                                  HorizontalAlignment="Stretch" FontSize="13" />
-                        <TextBox Header="Base URL" Text="{x:Bind P.BaseUrl, Mode=TwoWay}" IsEnabled="{x:Bind P.IsCustom, Mode=OneWay}" FontSize="13" />
-                        <PasswordBox Header="API key" Password="{x:Bind P.ApiKey, Mode=TwoWay}" PlaceholderText="Paste your key"
-                                     PasswordRevealMode="Peek" FontSize="13" />
-                        <TextBox Header="Model" Text="{x:Bind P.KeyModel, Mode=TwoWay}" FontSize="13" />
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button Click="Test_Click" Padding="12,5,12,6" FontSize="12.5">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <ProgressRing Width="14" Height="14" IsActive="{x:Bind P.Testing, Mode=OneWay}" Visibility="{x:Bind P.Testing, Mode=OneWay}" />
-                                    <TextBlock Text="Test connection" />
-                                </StackPanel>
-                            </Button>
-                            <TextBlock Text="{x:Bind P.TestResult, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
-                                       Foreground="{x:Bind TestBrush, Mode=OneWay}" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <TextBlock Style="{StaticResource Caption}" Text="One Connection is used at a time. Switching keeps the other's details." />
+                    <!-- ROUND 4 · ChatGPT is the only Connection (ADR 0003); the caption adds the privacy line -->
+                    <TextBlock Style="{StaticResource Caption}"
+                               Text="Captures use your ChatGPT plan. Automatic picks the fastest model your plan offers. Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
                 </StackPanel>
             </Border>
 
@@ -160,8 +129,11 @@
                             <TextBlock Text="{x:Bind P.VersionLine, Mode=OneWay}" FontSize="13" />
                             <TextBlock Text="Open source, MIT" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
                         </StackPanel>
-                        <HyperlinkButton HorizontalAlignment="Right" Content="GitHub" FontSize="12.5"
-                                         NavigateUri="https://github.com/Gul-Sher-Khan/task-widget" />
+                        <!-- ROUND 4 · About links to the README's Privacy section -->
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                            <HyperlinkButton Content="Privacy" FontSize="12.5" NavigateUri="https://github.com/Gul-Sher-Khan/task-widget#privacy" />
+                            <HyperlinkButton Content="GitHub" FontSize="12.5" NavigateUri="https://github.com/Gul-Sher-Khan/task-widget" />
+                        </StackPanel>
                     </Grid>
 
                     <Rectangle Height="1" Fill="{ThemeResource HairlineBrush}" Margin="-12,0" />

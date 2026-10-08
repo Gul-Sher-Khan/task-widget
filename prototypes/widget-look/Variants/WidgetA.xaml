@@ -1,5 +1,7 @@
 <!-- PROTOTYPE · The Widget ("Fluent list", chosen in round 1): header, Capture box on top, flat rows with a Priority icon
-     and an Effort icon. The gear swaps the list for the Settings panel. -->
+     and an Effort icon. The gear swaps the list for the Settings panel.
+     ROUND 4 adds (marked below, variant picked on the control bar): header banner, welcome card / hotkey-only empty
+     state, "Waiting for dictation…", waiting and failed rows (CaptureRow), Re-interpret dimming, read-only rows. -->
 <UserControl
     x:Class="Look.WidgetA"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -12,10 +14,17 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!-- ROUND 4 · banner, variant C: a band above the header -->
+        <local:BannerView Grid.Row="0" Visibility="{x:Bind P.BannerAbove, Mode=OneWay}" local:Fx.Enter="True" />
+
         <!-- Header -->
-        <Grid Padding="16,10,8,4" ColumnSpacing="2">
+        <Grid Grid.Row="1" Padding="16,10,8,4" ColumnSpacing="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -57,28 +66,72 @@
             </Button>
         </Grid>
 
+        <!-- ROUND 4 · banner, variants A and B: under the header -->
+        <local:BannerView Grid.Row="2" Visibility="{x:Bind P.BannerBelow, Mode=OneWay}" local:Fx.Enter="True" />
+
         <!-- Capture box -->
-        <TextBox x:Name="Capture" Grid.Row="1" Margin="12,4,12,6" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
-                 PlaceholderText="Capture a thought…" FontSize="13.5"
-                 Visibility="{x:Bind local:F.Both(S.ShowingOpen, P.ShowTasks), Mode=OneWay}" />
+        <Grid Grid.Row="3" Margin="12,4,12,6" Visibility="{x:Bind local:F.Both(S.ShowingOpen, P.ShowTasks), Mode=OneWay}">
+            <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
+                     PlaceholderText="{x:Bind local:F.CapturePlaceholder(P.WaitingDictation), Mode=OneWay}" FontSize="13.5"
+                     ToolTipService.ToolTip="{x:Bind local:F.ReadOnlyTip(P.ReadOnly), Mode=OneWay}" />
+
+            <!-- ROUND 4 · read-only (saved by a newer version): typing a draft works, committing doesn't -->
+            <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="{ThemeResource FaintTextBrush}" HorizontalAlignment="Right"
+                      VerticalAlignment="Center" Margin="0,0,12,0" IsHitTestVisible="False" Visibility="{x:Bind P.ReadOnly, Mode=OneWay}" />
+
+            <!-- ROUND 4 · "Waiting for dictation…" A: the placeholder changes and a thin bar runs under the box -->
+            <ProgressBar IsIndeterminate="True" VerticalAlignment="Bottom" Margin="6,0,6,0" IsHitTestVisible="False"
+                         Visibility="{x:Bind local:F.Both(P.VA, P.WaitingDictation), Mode=OneWay}" />
+            <!-- B: the placeholder changes, a ring sits in the box and its border breathes in the accent -->
+            <Border CornerRadius="6" BorderThickness="2" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" IsHitTestVisible="False"
+                    Visibility="{x:Bind local:F.Both(P.VB, P.WaitingDictation), Mode=OneWay}" local:Fx.Pulse="True" />
+            <ProgressRing Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" IsHitTestVisible="False"
+                          IsActive="{x:Bind local:F.Both2(P.VB, P.WaitingDictation), Mode=OneWay}"
+                          Visibility="{x:Bind local:F.Both(P.VB, P.WaitingDictation), Mode=OneWay}" />
+            <!-- C: a listening bar covers the box (still focused underneath) and drains over the 4 s wait -->
+            <Border CornerRadius="6" Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" IsHitTestVisible="False"
+                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1"
+                    Visibility="{x:Bind local:F.Both(P.VC, P.WaitingDictation), Mode=OneWay}" local:Fx.Enter="True">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="10" Padding="12,0,0,0" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE720;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" local:Fx.Pulse="True" />
+                        <TextBlock Text="Waiting for dictation…" FontSize="13.5" Foreground="{ThemeResource MutedTextBrush}" />
+                    </StackPanel>
+                    <Rectangle Height="2" VerticalAlignment="Bottom" Margin="6,0,6,1" RadiusX="1" RadiusY="1"
+                               Fill="{ThemeResource AccentFillColorDefaultBrush}" local:Fx.Drain="True"
+                               Visibility="{x:Bind P.WaitingDictation, Mode=OneWay}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ROUND 4 · welcome card (first run, before the first sign-in) -->
+        <local:Welcome Grid.Row="4" Card="True" local:Fx.Enter="True"
+                       Visibility="{x:Bind local:F.WelcomeV(P.ShowWelcome, S.ShowingOpen, P.ShowTasks), Mode=OneWay}" />
 
         <!-- Tasks -->
-        <ListView x:Name="List" Grid.Row="2" MaxHeight="{x:Bind P.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
+        <ListView x:Name="List" Grid.Row="5" MaxHeight="{x:Bind P.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
                   ItemsSource="{x:Bind S.Visible, Mode=OneWay}" ItemContainerStyle="{StaticResource PlainRow}"
-                  CanDragItems="{x:Bind S.ShowingOpen, Mode=OneWay}" CanReorderItems="{x:Bind S.ShowingOpen, Mode=OneWay}"
-                  AllowDrop="{x:Bind S.ShowingOpen, Mode=OneWay}" Visibility="{x:Bind P.ShowTasks, Mode=OneWay}">
+                  CanDragItems="{x:Bind local:F.Both2(S.ShowingOpen, P.Editable), Mode=OneWay}"
+                  CanReorderItems="{x:Bind local:F.Both2(S.ShowingOpen, P.Editable), Mode=OneWay}"
+                  AllowDrop="{x:Bind local:F.Both2(S.ShowingOpen, P.Editable), Mode=OneWay}" Visibility="{x:Bind P.ShowTasks, Mode=OneWay}">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:TaskVm">
-                    <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
+                    <Grid>
+                    <!-- ROUND 4 · Re-interpret dims the Capture's old Tasks (fade over DimMs) -->
+                    <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent" Visibility="{x:Bind IsTaskRow, Mode=OneWay}"
+                          Opacity="{x:Bind local:F.Dim(IsDimmed), Mode=OneWay}" local:Fx.DimFade="True">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
+                        <!-- ROUND 4 · variant C: a highlight sweeps across a dimmed row -->
+                        <local:Shimmer Grid.ColumnSpan="3" Margin="-8,-7,-6,-7" Visibility="{x:Bind local:F.DimShimmer(IsDimmed), Mode=OneWay}" />
+
                         <!-- tick -->
                         <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
-                                Click="Check_Click" Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
+                                Click="Check_Click" Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}" IsEnabled="{x:Bind local:F.Editable(IsDone), Mode=OneWay}">
                             <Grid>
                                 <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
                                 <Ellipse Width="17" Height="17" Fill="{ThemeResource AccentFillColorDefaultBrush}"
@@ -102,7 +155,7 @@
                                        Visibility="{x:Bind local:F.NV(IsEditing), Mode=OneWay}" />
                             <TextBox Visibility="{x:Bind IsEditing, Mode=OneWay}" Loaded="Edit_Loaded" FontSize="13.5"
                                      Padding="6,3,6,3" MinHeight="0" />
-                            <TextBlock Text="Interpreting…" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}"
+                            <TextBlock Text="{x:Bind PendingText, Mode=OneWay}" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}"
                                        Visibility="{x:Bind IsPending, Mode=OneWay}" />
                             <local:Accordion IsOpen="{x:Bind IsExpanded, Mode=OneWay}">
                                 <TextBlock Text="{x:Bind Details, Mode=OneWay}" FontSize="12.5" TextWrapping="Wrap"
@@ -112,28 +165,35 @@
 
                         <!-- Priority + Effort -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Top"
-                                    Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
+                                    Visibility="{x:Bind local:F.PriV(IsPending, IsDimmed), Mode=OneWay}">
                             <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource FaintTextBrush}" Margin="0,0,4,0"
                                       Visibility="{x:Bind HasDetails, Mode=OneWay}" />
-                            <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Eff_Click" MinWidth="26">
+                            <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Eff_Click" MinWidth="26" IsEnabled="{x:Bind local:F.Editable(IsDone), Mode=OneWay}">
                                 <local:EffIcon Effort="{x:Bind Effort, Mode=OneWay}" />
                             </Button>
-                            <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Pri_Click">
+                            <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Pri_Click" IsEnabled="{x:Bind local:F.Editable(IsDone), Mode=OneWay}">
                                 <local:PriIcon Priority="{x:Bind Priority, Mode=OneWay}" />
                             </Button>
                         </StackPanel>
+                        <!-- ROUND 4 · variant B: a dimmed row shows a ring where its Priority and Effort were -->
+                        <ProgressRing Grid.Column="2" Width="14" Height="14" VerticalAlignment="Top" Margin="0,3,6,0"
+                                      IsActive="{x:Bind local:F.DimRingOn(IsDimmed), Mode=OneWay}" Visibility="{x:Bind local:F.DimRing(IsDimmed), Mode=OneWay}" />
+                    </Grid>
+
+                    <!-- ROUND 4 · waiting / failed / editing a Capture -->
+                    <local:CaptureRow Item="{x:Bind}" Visibility="{x:Bind IsCaptureRow, Mode=OneWay}" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
 
-        <TextBlock Grid.Row="2" Text="All clear." HorizontalAlignment="Center" Margin="0,18,0,22"
-                   Foreground="{ThemeResource FaintTextBrush}"
-                   Visibility="{x:Bind local:F.All3(S.AllClear, S.ShowingOpen, P.ShowTasks), Mode=OneWay}" />
+        <!-- ROUND 4 · the empty list after sign-in shows only the hotkey line (replaces "All clear.") -->
+        <local:Welcome Grid.Row="6" Card="False"
+                       Visibility="{x:Bind local:F.EmptyHint(S.IsEmpty, P.ShowWelcome, S.ShowingOpen, P.ShowTasks), Mode=OneWay}" />
 
         <!-- Settings -->
-        <local:SettingsPanel x:Name="SettingsView" Grid.Row="3" Visibility="{x:Bind P.ShowSettings, Mode=OneWay}" />
+        <local:SettingsPanel x:Name="SettingsView" Grid.Row="7" Visibility="{x:Bind P.ShowSettings, Mode=OneWay}" />
 
-        <local:UndoPill Grid.Row="2" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+        <local:UndoPill Grid.Row="5" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4" />
     </Grid>
 </UserControl>

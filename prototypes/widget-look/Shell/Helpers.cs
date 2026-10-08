@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Hosting;
 using Windows.UI.Text;
 
 namespace Look;
@@ -56,6 +57,25 @@ public static class F
     public static string Plus(int n) => "+" + n;
     public static double Pct(double f) => f * 100;
     public static string Plural(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
+
+    // ---- Round 4 ----
+    public static double Dim(bool dimmed) => dimmed ? Shell.Num("DimOpacity") : 1;
+    public static Visibility NoBanner(Banner b) => b == Look.Banner.None ? Visibility.Visible : Visibility.Collapsed;
+    public static Visibility Is(Banner b, string which) => b.ToString() == which ? Visibility.Visible : Visibility.Collapsed;
+    public static Visibility Any2(bool a, bool b) => a || b ? Visibility.Visible : Visibility.Collapsed;
+    // The empty list: the welcome card before the first sign-in, otherwise just the hotkey line.
+    public static Visibility EmptyHint(bool empty, bool welcome, bool open, bool tasks) => empty && !welcome && open && tasks ? Visibility.Visible : Visibility.Collapsed;
+    public static Visibility WelcomeV(bool welcome, bool open, bool tasks) => welcome && open && tasks ? Visibility.Visible : Visibility.Collapsed;
+    public static string TapLine(string hotkey) => $"Tap {hotkey.Replace(" + ", "+")} anywhere to capture";
+    public static bool Both2(bool a, bool b) => a && b;
+    public static string CapturePlaceholder(bool waiting) => waiting ? "Waiting for dictation…" : "Capture a thought…";
+    public static string ReadOnlyTip(bool ro) => ro ? "Saved by a newer Task Widget. Update to add Captures." : null;
+    // Read-only rows: Done Tasks stay greyed the same way, so only the newer-version state disables controls.
+    public static bool Editable(bool _) => Shell.Prefs.Editable;
+    public static Visibility PriV(bool pending, bool dimmed) => pending || (dimmed && Shell.Prefs.VB) ? Visibility.Collapsed : Visibility.Visible;
+    public static Visibility DimRing(bool dimmed) => dimmed && Shell.Prefs.VB ? Visibility.Visible : Visibility.Collapsed;
+    public static bool DimRingOn(bool dimmed) => dimmed && Shell.Prefs.VB;
+    public static Visibility DimShimmer(bool dimmed) => dimmed && Shell.Prefs.VC ? Visibility.Visible : Visibility.Collapsed;
 
     // A fresh Geometry per call: one instance cannot be shared between two Paths.
     static Geometry Geo(string d) => (Geometry)XamlReader.Load(
@@ -113,5 +133,111 @@ public sealed class Accordion : ContentControl
         };
         running = sb;
         sb.Begin();
+    }
+}
+
+// Round 4 motion helpers, all driven by Motion.xaml tokens.
+public static class Fx
+{
+    // Enter="True": fades in while sliding down EnterSlidePx whenever shown; a quick fade when hidden.
+    public static readonly DependencyProperty EnterProperty = DependencyProperty.RegisterAttached(
+        "Enter", typeof(bool), typeof(Fx), new PropertyMetadata(false, (d, e) => { if ((bool)e.NewValue) ApplyEnter((UIElement)d); }));
+    public static bool GetEnter(UIElement e) => (bool)e.GetValue(EnterProperty);
+    public static void SetEnter(UIElement e, bool v) => e.SetValue(EnterProperty, v);
+
+    static void ApplyEnter(UIElement el)
+    {
+        var c = ElementCompositionPreview.GetElementVisual(el).Compositor;
+        ElementCompositionPreview.SetIsTranslationEnabled(el, true);
+        var ms = TimeSpan.FromMilliseconds(Shell.Ms("EnterMs"));
+        var show = c.CreateAnimationGroup();
+        var fade = c.CreateScalarKeyFrameAnimation(); fade.Target = "Opacity";
+        fade.InsertKeyFrame(0, 0); fade.InsertKeyFrame(1, 1, Shell.EaseOut(c)); fade.Duration = ms;
+        var slide = c.CreateScalarKeyFrameAnimation(); slide.Target = "Translation.Y";
+        slide.InsertKeyFrame(0, -(float)Shell.Num("EnterSlidePx")); slide.InsertKeyFrame(1, 0, Shell.EaseOut(c)); slide.Duration = ms;
+        show.Add(fade); show.Add(slide);
+        var hide = c.CreateScalarKeyFrameAnimation(); hide.Target = "Opacity";
+        hide.InsertKeyFrame(1, 0, Shell.EaseIn(c)); hide.Duration = TimeSpan.FromMilliseconds(Shell.Ms("LeaveMs"));
+        ElementCompositionPreview.SetImplicitShowAnimation(el, show);
+        ElementCompositionPreview.SetImplicitHideAnimation(el, hide);
+    }
+
+    // DimFade="True": Opacity changes (Re-interpret dimming) animate over DimMs.
+    public static readonly DependencyProperty DimFadeProperty = DependencyProperty.RegisterAttached(
+        "DimFade", typeof(bool), typeof(Fx), new PropertyMetadata(false, (d, e) =>
+        {
+            if ((bool)e.NewValue) ((UIElement)d).OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromMilliseconds(Shell.Ms("DimMs")) };
+        }));
+    public static bool GetDimFade(UIElement e) => (bool)e.GetValue(DimFadeProperty);
+    public static void SetDimFade(UIElement e, bool v) => e.SetValue(DimFadeProperty, v);
+
+    // Pulse="True": opacity breathes 1 → 0.35 → 1 every DictationPulseMs while the element is in the tree.
+    public static readonly DependencyProperty PulseProperty = DependencyProperty.RegisterAttached(
+        "Pulse", typeof(bool), typeof(Fx), new PropertyMetadata(false, (d, e) =>
+        {
+            if (!(bool)e.NewValue) return;
+            var el = (UIElement)d;
+            var v = ElementCompositionPreview.GetElementVisual(el);
+            var a = v.Compositor.CreateScalarKeyFrameAnimation();
+            a.InsertKeyFrame(0, 1); a.InsertKeyFrame(0.5f, 0.35f); a.InsertKeyFrame(1, 1);
+            a.Duration = TimeSpan.FromMilliseconds(Shell.Ms("DictationPulseMs"));
+            a.IterationBehavior = Microsoft.UI.Composition.AnimationIterationBehavior.Forever;
+            v.StartAnimation("Opacity", a);
+        }));
+    public static bool GetPulse(UIElement e) => (bool)e.GetValue(PulseProperty);
+    public static void SetPulse(UIElement e, bool v) => e.SetValue(PulseProperty, v);
+
+    // Drain="True": scales X from 1 to 0 (right edge to the left) over DictationWaitMs, restarting each time it's shown.
+    public static readonly DependencyProperty DrainProperty = DependencyProperty.RegisterAttached(
+        "Drain", typeof(bool), typeof(Fx), new PropertyMetadata(false, (d, e) =>
+        {
+            if (!(bool)e.NewValue) return;
+            var el = (FrameworkElement)d;
+            void Start()
+            {
+                if (el.Visibility != Visibility.Visible) return;
+                var v = ElementCompositionPreview.GetElementVisual(el);
+                var a = v.Compositor.CreateScalarKeyFrameAnimation();
+                a.InsertKeyFrame(0, 1); a.InsertKeyFrame(1, 0, v.Compositor.CreateLinearEasingFunction());
+                a.Duration = TimeSpan.FromMilliseconds(Shell.Ms("DictationWaitMs"));
+                v.CenterPoint = new System.Numerics.Vector3(0, 0, 0);
+                v.StartAnimation("Scale.X", a);
+            }
+            el.Loaded += (_, _) => Start();
+            el.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Start());
+        }));
+    public static bool GetDrain(UIElement e) => (bool)e.GetValue(DrainProperty);
+    public static void SetDrain(UIElement e, bool v) => e.SetValue(DrainProperty, v);
+}
+
+// Variant C: a soft highlight that sweeps across a dimmed row every ShimmerMs.
+public sealed class Shimmer : Grid
+{
+    readonly Microsoft.UI.Xaml.Shapes.Rectangle band = new() { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+
+    public Shimmer()
+    {
+        IsHitTestVisible = false;
+        var stops = new GradientStopCollection
+        {
+            new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(0, 255, 255, 255), Offset = 0 },
+            new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(28, 255, 255, 255), Offset = 0.5 },
+            new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(0, 255, 255, 255), Offset = 1 },
+        };
+        band.Fill = new LinearGradientBrush(stops, 0);
+        Children.Add(band);
+        ElementCompositionPreview.SetIsTranslationEnabled(band, true);
+        SizeChanged += (_, e) => Start(e.NewSize.Width);
+    }
+
+    void Start(double w)
+    {
+        if (w <= 0) return;
+        var v = ElementCompositionPreview.GetElementVisual(band);
+        var a = v.Compositor.CreateScalarKeyFrameAnimation();
+        a.InsertKeyFrame(0, -120); a.InsertKeyFrame(1, (float)w, v.Compositor.CreateLinearEasingFunction());
+        a.Duration = TimeSpan.FromMilliseconds(Shell.Ms("ShimmerMs"));
+        a.IterationBehavior = Microsoft.UI.Composition.AnimationIterationBehavior.Forever;
+        v.StartAnimation("Translation.X", a);
     }
 }

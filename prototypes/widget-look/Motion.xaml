@@ -51,4 +51,19 @@
     <x:Double x:Key="UndoStayMs">5000</x:Double>
     <x:Double x:Key="UndoOutMs">150</x:Double>
     <x:Double x:Key="UndoRisePx">12</x:Double>
+
+    <!-- ROUND 4 (first-run, banners, Capture states). Not finalized until a variant is picked. -->
+    <!-- Banners, welcome card, waiting and failed rows: fade in while sliding down 8 px; leave with a quick fade.
+         The window's own height change (WidgetGrowMs / WidgetShrinkMs) moves everything else. -->
+    <x:Double x:Key="EnterMs">220</x:Double>
+    <x:Double x:Key="EnterSlidePx">8</x:Double>
+    <x:Double x:Key="LeaveMs">120</x:Double>
+    <!-- Re-interpret: the Capture's old Tasks fade to this opacity while it runs, and back if it fails. -->
+    <x:Double x:Key="DimMs">180</x:Double>
+    <x:Double x:Key="DimOpacity">0.45</x:Double>
+    <!-- Variant C only: a highlight sweeps across dimmed rows, once per cycle. -->
+    <x:Double x:Key="ShimmerMs">1400</x:Double>
+    <!-- "Waiting for dictation…": how long a tap on an empty box waits for Wispr Flow's paste, and the pulse period. -->
+    <x:Double x:Key="DictationWaitMs">4000</x:Double>
+    <x:Double x:Key="DictationPulseMs">1200</x:Double>
 </ResourceDictionary>

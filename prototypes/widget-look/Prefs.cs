@@ -1,15 +1,25 @@
-// PROTOTYPE: in-memory Settings plus two prototype-only review switches.
+// PROTOTYPE: in-memory Settings, app state for the round-4 screens, and prototype-only review switches.
 namespace Look;
+
+public enum SignInState { Idle, Waiting, Failed, NotEligible }
+public enum Banner { None, NewerVersion, SignedOut, Recovered, StartedEmpty }
 
 public sealed class Prefs : Bindable
 {
     // Review switches (prototype only): approximate a contrast theme; run every animation 5x slower.
     public bool ContrastPreview, SlowMo;
 
+    // ---- Round 4 variant (prototype only): 0 A "Quiet", 1 B "Cards", 2 C "Header-led" ----
+    public static readonly string[] VariantNames = { "A Quiet", "B Cards", "C Header-led" };
+    int variant;
+    public int Variant { get => variant; set { if (Set(ref variant, value)) { Raise(nameof(VA)); Raise(nameof(VB)); Raise(nameof(VC)); } } }
+    public bool VA => variant == 0;
+    public bool VB => variant == 1;
+    public bool VC => variant == 2;
+
     // ---- Settings ----
-    int theme, backdrop, maxRows = 8, connection, model, provider;
-    bool signedIn = true, launchAtLogin = true, showSettings, recording, testing;
-    string baseUrl = "https://api.groq.com/openai/v1", apiKey = "", keyModel = "openai/gpt-oss-20b", testResult = "";
+    int theme, backdrop, maxRows = 8, model;
+    bool signedIn = true, launchAtLogin = true, showSettings, recording;
     string hotkey = "Ctrl + Shift";
 
     public int Theme { get => theme; set => Set(ref theme, value); }
@@ -21,41 +31,77 @@ public sealed class Prefs : Bindable
     public bool ShowSettings { get => showSettings; set { if (Set(ref showSettings, value)) Raise(nameof(ShowTasks)); } }
     public bool ShowTasks => !showSettings;
 
-    // Connection: exactly one is active (0 ChatGPT, 1 API key); the other's details are kept.
-    public int Connection { get => connection; set { if (Set(ref connection, value)) { Raise(nameof(IsChatGpt)); Raise(nameof(IsApiKey)); } } }
-    public bool IsChatGpt => connection == 0;
-    public bool IsApiKey => connection == 1;
-    public bool SignedIn { get => signedIn; set { if (Set(ref signedIn, value)) Raise(nameof(SignedOut)); } }
+    // ---- Connection: ChatGPT only (ADR 0003) ----
+    public bool SignedIn
+    {
+        get => signedIn;
+        set { if (Set(ref signedIn, value)) { Raise(nameof(SignedOut)); Raise(nameof(ShowWelcome)); RaiseBanner(); } }
+    }
     public bool SignedOut => !signedIn;
     public string Account => "gul@example.com";
     public string Plan => "ChatGPT Pro";
     public static readonly string[] Models = { "Automatic (gpt-5.6-sol)", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra" };
     public int Model { get => model; set => Set(ref model, value); }
 
-    public static readonly string[] Providers = { "Groq", "OpenRouter", "Custom" };
-    public int Provider
-    {
-        get => provider;
-        set
-        {
-            if (!Set(ref provider, value)) return;
-            Raise(nameof(IsCustom));
-            if (value == 0) BaseUrl = "https://api.groq.com/openai/v1";
-            if (value == 1) BaseUrl = "https://openrouter.ai/api/v1";
-            TestResult = "";
-        }
-    }
-    public bool IsCustom => provider == 2;
-    public string BaseUrl { get => baseUrl; set => Set(ref baseUrl, value); }
-    public string ApiKey { get => apiKey; set => Set(ref apiKey, value); }
-    public string KeyModel { get => keyModel; set => Set(ref keyModel, value); }
-    public bool Testing { get => testing; set => Set(ref testing, value); }
-    public string TestResult { get => testResult; set { if (Set(ref testResult, value)) Raise(nameof(HasTestResult)); } }
-    public bool HasTestResult => testResult.Length > 0;
-
-    public string Hotkey { get => hotkey; set => Set(ref hotkey, value); }
+    public string Hotkey { get => hotkey; set { if (Set(ref hotkey, value)) Raise(nameof(HotkeyKeys)); } }
+    public string[] HotkeyKeys => hotkey.Split(" + ");
     public bool Recording { get => recording; set { if (Set(ref recording, value)) Raise(nameof(NotRecording)); } }
     public bool NotRecording => !recording;
+
+    // ---- First run: the welcome card shows until the first sign-in, then never again ----
+    bool welcomed = true;
+    public bool Welcomed { get => welcomed; set { if (Set(ref welcomed, value)) { Raise(nameof(ShowWelcome)); RaiseBanner(); } } }
+    public bool ShowWelcome => !welcomed && !signedIn;
+
+    // ---- Sign-in: one flow and one state, shared by the welcome card, the signed-out banner and Settings ----
+    SignInState signIn;
+    string signInCause = "";
+    public SignInState SignIn
+    {
+        get => signIn;
+        set
+        {
+            if (!Set(ref signIn, value)) return;
+            foreach (var n in new[] { nameof(SignInIdle), nameof(SignInWaiting), nameof(SignInFailed), nameof(SignInNotEligible), nameof(SignInButton) })
+                Raise(n);
+        }
+    }
+    public bool SignInIdle => signIn == SignInState.Idle;
+    public bool SignInWaiting => signIn == SignInState.Waiting;
+    public bool SignInFailed => signIn == SignInState.Failed;
+    public bool SignInNotEligible => signIn == SignInState.NotEligible;
+    public bool SignInButton => signIn is SignInState.Idle or SignInState.NotEligible; // the plain "Sign in with ChatGPT" button shows
+    public string SignInCause { get => signInCause; set => Set(ref signInCause, value); }
+
+    // ---- Header banner: one at a time; newer version > signed out > recovery ----
+    bool readOnly, recovered, startedEmpty;
+    public bool ReadOnly { get => readOnly; set { if (Set(ref readOnly, value)) { Raise(nameof(Editable)); RaiseBanner(); } } }
+    public bool Editable => !readOnly;
+    public bool Recovered { get => recovered; set { if (Set(ref recovered, value)) RaiseBanner(); } }
+    public bool StartedEmpty { get => startedEmpty; set { if (Set(ref startedEmpty, value)) RaiseBanner(); } }
+    public Banner Banner => readOnly ? Banner.NewerVersion
+                          : signedIn == false && welcomed ? Banner.SignedOut
+                          : recovered ? Banner.Recovered
+                          : startedEmpty ? Banner.StartedEmpty
+                          : Banner.None;
+    public bool HasBanner => Banner != Banner.None;
+    public bool BannerAbove => HasBanner && VC; // variant C: a band above the header
+    public bool BannerBelow => HasBanner && !VC;
+    void RaiseBanner() { Raise(nameof(Banner)); Raise(nameof(HasBanner)); Raise(nameof(BannerAbove)); Raise(nameof(BannerBelow)); }
+
+    // ---- "Waiting for dictation…" (tap Ctrl+Shift on an empty box) ----
+    bool waitingDictation;
+    public bool WaitingDictation { get => waitingDictation; set { if (Set(ref waitingDictation, value)) Raise(nameof(NotWaitingDictation)); } }
+    public bool NotWaitingDictation => !waitingDictation;
+
+    // ---- Prototype-only simulation switches (control bar) ----
+    public static readonly string[] SignInOutcomes = { "succeeds", "didn't finish", "plan not eligible" };
+    public int SignInOutcome;
+    public static readonly string[] CaptureOutcomes = { "ok", "timeout", "429", "bad reply", "zero Tasks", "plan lapsed" };
+    public int CaptureOutcome;
+    bool offline;
+    public bool Offline { get => offline; set => Set(ref offline, value); }
+    public bool DictationArrives = true, HoldPending;
 
     // ---- Updates (Packaging, updates and signing): check-and-notify from GitHub Releases, never silent ----
     public enum Upd { Current, Checking, Available, Downloading, Failed }

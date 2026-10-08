@@ -17,14 +17,14 @@ public static class RowKit
     {
         lv.SelectionMode = ListViewSelectionMode.None;
         lv.IsItemClickEnabled = true;
-        lv.ItemClick += (_, e) => { var t = (TaskVm)e.ClickedItem; if (!t.IsEditing && !t.IsPending) S.ToggleExpand(t); };
+        lv.ItemClick += (_, e) => { var t = (TaskVm)e.ClickedItem; if (!t.IsEditing && !t.NotTask) S.ToggleExpand(t); };
 
         TaskVm dragged = null;
         int from = -1;
         lv.DragItemsStarting += (_, e) =>
         {
             dragged = e.Items.FirstOrDefault() as TaskVm;
-            if (dragged == null || dragged.IsPending || S.ShowDone) { e.Cancel = true; dragged = null; return; }
+            if (dragged == null || dragged.NotTask || S.ShowDone) { e.Cancel = true; dragged = null; return; }
             from = S.Open.IndexOf(dragged);
         };
         lv.DragItemsCompleted += (_, _) => { if (dragged != null) S.DragMoved(dragged, from); dragged = null; };
@@ -49,10 +49,10 @@ public static class RowKit
 
         lv.RightTapped += (_, e) =>
         {
-            if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskVm t || t.IsPending) return;
+            if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskVm t || t.NotTask || Shell.Prefs.ReadOnly) return;
             var menu = new MenuFlyout();
             menu.Items.Add(Item("Edit title", "", () => t.IsEditing = true));
-            menu.Items.Add(Item("Re-interpret Capture…", "", () => { }));
+            menu.Items.Add(Item("Re-interpret Capture…", "", () => S.Reinterpret(t)));
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(Item("Delete", "", () => S.Delete(t)));
             menu.ShowAt(e.OriginalSource as FrameworkElement, e.GetPosition(e.OriginalSource as UIElement));
@@ -99,7 +99,7 @@ public static class RowKit
     public static void Check(object s) { if (Item(s) is { } t) S.ToggleComplete(t); }
     public static void Pri(object s) { if (Item(s) is { } t) S.CyclePriority(t); }
     public static void Eff(object s) { if (Item(s) is { } t) S.CycleEffort(t); }
-    public static void BeginEdit(object s) { if (Item(s) is { IsPending: false } t) t.IsEditing = true; }
+    public static void BeginEdit(object s) { if (Item(s) is { NotTask: false } t && Shell.Prefs.Editable) t.IsEditing = true; }
 
     public static void EditLoaded(object s)
     {

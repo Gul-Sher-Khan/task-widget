@@ -42,6 +42,13 @@ public static class Shell
         Prefs.Backdrop = Env("LOOK_BACKDROP");
         Prefs.ShowSettings = Env("LOOK_SETTINGS") == 1;
         if (Env("LOOK_UPDATE") == 1) { Prefs.Update = Prefs.Upd.Available; Prefs.CheckedWhen = "Checked just now"; Store.Attention = true; }
+        // Round 4: LOOK_VARIANT 0-2 (A/B/C), LOOK_SCENE 0-7 (see Scenes).
+        Prefs.Variant = Env("LOOK_VARIANT");
+        Scene(Env("LOOK_SCENE"), apply: false);
+        // LOOK_SIGNIN 0-3: Idle, Waiting, Failed, NotEligible (for screenshots of the sign-in states).
+        Prefs.SignInCause = Causes[0];
+        Prefs.SignIn = (SignInState)Env("LOOK_SIGNIN");
+        Prefs.ShowSettings = Env("LOOK_SETTINGS") == 1; // Scene() closes Settings, so re-apply the override
         // Fires for dark/light, accent and contrast-theme changes alike (HighContrastChanged is unavailable unpackaged).
         ui.ColorValuesChanged += (_, _) => dq.TryEnqueue(Apply);
         Prefs.PropertyChanged += (_, e) =>
@@ -68,6 +75,7 @@ public static class Shell
         After(50, () => Widget.Sink());
         if (Env("LOOK_BUSY") == 1) { Store.Capture("Email Bilal the contract, he's waiting today"); Store.Attention = true; }
         if (Env("LOOK_DOCKED") == 1) After(400, Collapse);
+        if (Env("LOOK_DICTATION") == 1) After(800, WaitForDictation); // Round 4: screenshot "Waiting for dictation…"
 
         if (Env("LOOK_NOBAR") == 1) return;
         Bar = new ProtoBar();
@@ -148,12 +156,16 @@ public static class Shell
         Bar?.Refresh();
     }
 
+    // Timers are held until they tick: nothing else roots a DispatcherQueueTimer, and a collected one never fires.
+    static readonly System.Collections.Generic.HashSet<DispatcherQueueTimer> timers = new();
+
     public static void After(int ms, Action a)
     {
         var t = dq.CreateTimer();
         t.Interval = TimeSpan.FromMilliseconds(ms);
         t.IsRepeating = false;
-        t.Tick += (_, _) => a();
+        t.Tick += (_, _) => { timers.Remove(t); a(); };
+        timers.Add(t);
         t.Start();
     }
 
@@ -183,8 +195,11 @@ public static class Shell
     static void OnTap()
     {
         if (Prefs.Recording) return; // the Settings hotkey recorder is listening
+        if (Prefs.WaitingDictation) return;
         if (Raised && Native.IsForeground(Widget.Hwnd))
         {
+            // Round 4: an empty box waits up to DictationWaitMs for Wispr Flow's paste, then commits and docks.
+            if (string.IsNullOrWhiteSpace(Widget.WidgetView?.CaptureBox?.Text) && !Prefs.ReadOnly) { WaitForDictation(); return; }
             CommitCapture();
             EndSession();
             return;
@@ -214,10 +229,120 @@ public static class Shell
     {
         var box = Widget.WidgetView?.CaptureBox;
         if (box == null || string.IsNullOrWhiteSpace(box.Text)) return;
+        if (Prefs.ReadOnly) return; // saved by a newer version: the draft stays in the box
         Store.Capture(box.Text);
         box.Text = "";
     }
 
+    // ---- Round 4: "Waiting for dictation…" ----
+    static int dictationToken;
+
+    public static void WaitForDictation()
+    {
+        var box = Widget.WidgetView?.CaptureBox;
+        if (box == null) return;
+        int token = ++dictationToken;
+        Prefs.WaitingDictation = true;
+        void Done(bool commit)
+        {
+            if (token != dictationToken || !Prefs.WaitingDictation) return;
+            box.TextChanged -= Changed;
+            Prefs.WaitingDictation = false;
+            if (commit) CommitCapture();
+            EndSession();
+        }
+        void Changed(object s, TextChangedEventArgs e) { if (!string.IsNullOrWhiteSpace(box.Text)) Done(true); }
+        box.TextChanged += Changed;
+        After((int)Ms("DictationWaitMs"), () => Done(false));
+    }
+
+    // Control bar: raise the Widget as the hotkey would, wait, and (optionally) paste a dictation partway through.
+    public static void SimulateDictation()
+    {
+        if (!Raised) OnTap();
+        Widget.WidgetView.CaptureBox.Text = "";
+        After(150, () =>
+        {
+            WaitForDictation();
+            if (Prefs.DictationArrives)
+                After((int)(Ms("DictationWaitMs") * 0.4), () =>
+                {
+                    if (Prefs.WaitingDictation) Widget.WidgetView.CaptureBox.Text = "Book a table for Friday dinner, somewhere near the office";
+                });
+        });
+    }
+
+    // ---- Round 4: sign-in (one flow; the welcome card, the signed-out banner and Settings share its state) ----
+    static int signInToken, causeIndex;
+    static readonly string[] Causes =
+    {
+        "Timed out after 5 minutes.",
+        "Access was denied in the browser.",
+        "The browser returned an unexpected state.",
+        "Couldn't exchange the sign-in code for tokens.",
+    };
+
+    public static void StartSignIn()
+    {
+        int token = ++signInToken;
+        Prefs.SignIn = SignInState.Waiting;
+        After(2500 * (Prefs.SlowMo ? 5 : 1), () =>
+        {
+            if (token != signInToken || !Prefs.SignInWaiting) return;
+            switch (Prefs.SignInOutcome)
+            {
+                case 0:
+                    Prefs.SignIn = SignInState.Idle;
+                    Prefs.SignedIn = true;
+                    Prefs.Welcomed = true;
+                    Store.RunWaiting();
+                    if (Docked) Expand(); else { Raised = true; Widget.Raise(); } // the Widget comes to the front
+                    break;
+                case 1:
+                    Prefs.SignInCause = Causes[causeIndex++ % Causes.Length];
+                    Prefs.SignIn = SignInState.Failed;
+                    break;
+                default:
+                    Prefs.SignIn = SignInState.NotEligible;
+                    break;
+            }
+        });
+    }
+
+    public static void CancelSignIn()
+    {
+        signInToken++;
+        Prefs.SignInCause = "You cancelled sign-in.";
+        Prefs.SignIn = SignInState.Failed;
+    }
+
+    // ---- Round 4: scenes for the control bar ----
+    public static readonly string[] Scenes =
+        { "Everyday", "First run", "Empty, signed in", "Newer version", "Signed out", "Recovered", "Started empty", "Capture states" };
+    public static int SceneIndex;
+
+    public static void Scene(int i, bool apply = true)
+    {
+        SceneIndex = i;
+        var P = Prefs;
+        signInToken++;
+        P.SignIn = SignInState.Idle;
+        P.ReadOnly = false; P.Recovered = false; P.StartedEmpty = false; P.Offline = false;
+        P.ShowSettings = false; Store.ShowDone = false;
+        P.HoldPending = false;
+        P.SignedIn = i is not (1 or 4);
+        P.Welcomed = i != 1;
+        Store.Seed(i is 1 or 2 or 6 ? 0 : 9);
+        Store.ReleaseHeld();
+        Store.Attention = false;
+        if (i == 3) P.ReadOnly = true;
+        if (i == 5) P.Recovered = true;
+        if (i == 6) P.StartedEmpty = true;
+        if (i == 7) Store.SeedCaptureStates();
+        if (apply) Apply();
+    }
+
+    public static void Note(string text) => Bar?.Note(text);
     public static void EndSession()
     {
         Raised = false;

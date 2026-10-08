@@ -1,4 +1,4 @@
-// PROTOTYPE: throwaway. Sign-in, key test and the hotkey recorder are simulated.
+// PROTOTYPE: throwaway. Sign-in (Shell.StartSignIn) and the hotkey recorder are simulated.
 using System.Collections.Generic;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -15,11 +15,9 @@ public sealed partial class SettingsPanel : UserControl
 {
     public Prefs P => Shell.Prefs;
     public string[] Models => Prefs.Models;
-    public string[] Providers => Prefs.Providers;
     public string[] Themes => Shell.ThemeNames;
     public string[] Backdrops => Shell.BackdropNames;
     public Visibility TransparencyOff => new UISettings().AdvancedEffectsEnabled ? Visibility.Collapsed : Visibility.Visible;
-    public Brush TestBrush => P.TestResult.StartsWith("Connected") ? Shell.Res("OkBrush") : Shell.Res("ErrorBrush");
 
     readonly HashSet<VirtualKey> held = new();
     string combo;
@@ -28,8 +26,6 @@ public sealed partial class SettingsPanel : UserControl
     public SettingsPanel()
     {
         InitializeComponent();
-        ConnBar.SelectedItem = ConnBar.Items[P.Connection];
-        P.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(Prefs.TestResult)) Bindings.Update(); };
         RecordButton.PreviewKeyDown += Record_KeyDown;
         RecordButton.PreviewKeyUp += Record_KeyUp;
         RecordButton.LostFocus += (_, _) => P.Recording = false;
@@ -37,16 +33,8 @@ public sealed partial class SettingsPanel : UserControl
         if (System.Environment.GetEnvironmentVariable("LOOK_UPDATE") == "1") Loaded += (_, _) => Scroller.ChangeView(null, 10000, null, true);
     }
 
-    void ConnBar_SelectionChanged(SelectorBar s, SelectorBarSelectionChangedEventArgs e) =>
-        P.Connection = s.Items.IndexOf(s.SelectedItem);
-
-    void SignOut_Click(object s, RoutedEventArgs e) { P.SignedIn = false; Shell.Store.Attention = true; }
-
-    void SignIn_Click(object s, RoutedEventArgs e)
-    {
-        P.Testing = true;
-        Shell.After(1400, () => { P.Testing = false; P.SignedIn = true; Shell.Store.Attention = false; });
-    }
+    // Sign out: no confirmation; Tasks and Captures are kept, the signed-out banner appears and new Captures wait.
+    void SignOut_Click(object s, RoutedEventArgs e) => P.SignedIn = false;
 
     // ---- updates: the first check finds 0.2.0; a check while offline (2nd, 4th…) fails ----
     int checks;
@@ -74,17 +62,6 @@ public sealed partial class SettingsPanel : UserControl
         }
         // The real app runs the installer silently and restarts; here we jump straight to the new version.
         Shell.After(2300, () => { P.Version = P.NewVersion; P.CheckedWhen = "Updated just now"; P.Update = Prefs.Upd.Current; Shell.Store.Attention = false; });
-    }
-
-    void Test_Click(object s, RoutedEventArgs e)
-    {
-        P.Testing = true;
-        P.TestResult = "";
-        Shell.After(900, () =>
-        {
-            P.Testing = false;
-            P.TestResult = P.ApiKey.Length < 8 ? "Key rejected (401)" : "Connected · 0.8 s";
-        });
     }
 
     // ---- hotkey recorder: a non-modifier key gives a chord; releasing a lone modifier pair gives a tap ----
