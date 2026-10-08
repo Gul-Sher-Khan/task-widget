@@ -174,38 +174,52 @@ public sealed class CommitCaptureTests
 
 sealed class ManualClock : IClock
 {
-    readonly Dictionary<long, (long Due, Action Callback)> pending = [];
+    readonly List<Entry> pending = [];
+    readonly DateTimeOffset start;
     long now;
-    long next;
 
-    public DateTimeOffset Now { get; private set; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-    public DateTimeOffset UtcNow => Now;
-
-    public void Set(DateTimeOffset time) => Now = time;
-
-    public long Schedule(TimeSpan delay, Action callback)
+    public ManualClock()
+        : this(new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero))
     {
-        var id = ++next;
-        pending[id] = (now + (long)delay.TotalMilliseconds, callback);
-        return id;
     }
 
-    public void Cancel(long id) => pending.Remove(id);
+    public ManualClock(DateTimeOffset start) => this.start = start;
+
+    public DateTimeOffset UtcNow => start.AddMilliseconds(now);
+
+    public DateTimeOffset Now => UtcNow;
+
+    public void Set(DateTimeOffset time) => now = (long)(time - start).TotalMilliseconds;
+
+    public IDisposable Schedule(TimeSpan delay, Action callback)
+    {
+        var entry = new Entry(now + (long)delay.TotalMilliseconds, callback);
+        pending.Add(entry);
+        return new Handle(this, entry);
+    }
+
+    public void Cancel() => pending.Clear();
 
     public void Advance(TimeSpan by)
     {
         now += (long)by.TotalMilliseconds;
-        Now = Now.Add(by);
-        var due = pending.Where(item => item.Value.Due <= now).Select(item => item.Key).ToArray();
-        var callbacks = new List<Action>(due.Length);
-        foreach (var id in due)
-        {
-            callbacks.Add(pending[id].Callback);
-            pending.Remove(id);
-        }
+        var due = pending.Where(item => item.Due <= now).ToArray();
+        foreach (var item in due)
+            pending.Remove(item);
+        foreach (var item in due)
+            item.Callback();
+    }
 
-        foreach (var callback in callbacks)
-            callback();
+    void Cancel(Entry entry) => pending.Remove(entry);
+
+    sealed class Entry(long due, Action callback)
+    {
+        public long Due { get; } = due;
+        public Action Callback { get; } = callback;
+    }
+
+    sealed class Handle(ManualClock clock, Entry entry) : IDisposable
+    {
+        public void Dispose() => clock.Cancel(entry);
     }
 }

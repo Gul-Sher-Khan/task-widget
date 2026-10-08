@@ -7,6 +7,7 @@ sealed class TaskFile
     public int SchemaVersion { get; set; }
     public string Draft { get; set; } = "";
     public bool Manual { get; set; }
+    public bool ManualPositions { get; set; }
     public List<TaskRecord> Tasks { get; set; } = [];
     public List<CaptureRecord> Captures { get; set; } = [];
 }
@@ -26,8 +27,11 @@ sealed class TaskRecord
     public string Details { get; set; } = "";
     public string Priority { get; set; } = "";
     public string Effort { get; set; } = "";
-    public DateTimeOffset Created { get; set; }
+    public DateTimeOffset? Created { get; set; }
+    public DateTimeOffset? CreatedAt { get; set; }
     public int Spoken { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
     public string Capture { get; set; } = "";
 }
 
@@ -36,6 +40,13 @@ sealed class SettingsFile
     public int SchemaVersion { get; set; }
     public bool Docked { get; set; }
     public int RowsBeforeScrolling { get; set; } = 8;
+    public string Theme { get; set; } = "system";
+    public string Backdrop { get; set; } = "mica";
+    public bool CheckForUpdatesAutomatically { get; set; } = true;
+    public DateTimeOffset? LastUpdateCheck { get; set; }
+    public string AvailableVersion { get; set; } = "";
+    public string UpdateResult { get; set; } = "";
+    public string InstallerUrl { get; set; } = "";
     public bool WelcomeRetired { get; set; }
     public string ExtAgentHostId { get; set; } = "";
     public string IssuedClientId { get; set; } = "";

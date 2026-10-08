@@ -477,6 +477,14 @@ sealed class InterpretHttp : HttpMessageHandler
             };
         }
 
+        if (!path.Contains("/v1/responses", StringComparison.Ordinal))
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("[]", Encoding.UTF8, "application/json"),
+            };
+        }
+
         OnSend?.Invoke();
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
         Bodies.Add(body);

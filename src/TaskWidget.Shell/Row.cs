@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using TaskWidget.Core;
+using Windows.UI.Text;
 
 namespace TaskWidget;
 
@@ -35,11 +36,22 @@ public static class Row
 
     public static string CountText(int count) => count.ToString();
 
+public static Visibility When(bool visible) =>
+        visible ? Visibility.Visible : Visibility.Collapsed;
+
+    public static Visibility Unless(bool hidden) =>
+        hidden ? Visibility.Collapsed : Visibility.Visible;
+
     public static Visibility WhenPositive(int count) =>
         count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    public static Visibility When(bool shown) =>
-        shown ? Visibility.Visible : Visibility.Collapsed;
+    public static TextDecorations Strike(bool striking) =>
+        striking ? TextDecorations.Strikethrough : TextDecorations.None;
+
+    public static double DoneFade(bool done, bool striking) => done || striking ? 0.5 : 1;
+
+    public static Visibility WhenText(string? text) =>
+        string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
 
     // Prototype Prefs.ListMaxHeight: a one-line row is ~37 DIP.
     public static double ListMaxHeight(int rows) => rows * 37 + 4;

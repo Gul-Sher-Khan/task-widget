@@ -52,24 +52,25 @@ public sealed partial class AppModel
         }
     }
 
-    int inFlight;
+    int capturesInFlight;
 
     void BeginProcessing()
     {
-        if (Interlocked.Increment(ref inFlight) == 1)
+        if (Interlocked.Increment(ref capturesInFlight) == 1)
             IsProcessing = true;
     }
 
     void EndProcessing()
     {
-        if (Interlocked.Decrement(ref inFlight) == 0)
+        if (Interlocked.Decrement(ref capturesInFlight) == 0)
             IsProcessing = false;
     }
 
     void Flush()
     {
         MarkDirty();
-        clock.Cancel(saveTimer);
+        saveTimer?.Dispose();
+        saveTimer = null;
         WriteIfDirty();
     }
 
