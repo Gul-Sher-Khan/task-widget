@@ -50,5 +50,9 @@ public static Visibility When(bool visible) =>
 
     public static double DoneFade(bool done, bool striking) => done || striking ? 0.5 : 1;
 
+    public static Visibility WhenText(string? text) =>
+        string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+
+    // Prototype Prefs.ListMaxHeight: a one-line row is ~37 DIP.
     public static double ListMaxHeight(int rows) => rows * 37 + 4;
 }

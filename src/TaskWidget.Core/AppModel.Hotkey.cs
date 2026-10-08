@@ -38,7 +38,7 @@ public sealed partial class AppModel
 
         if (CanCommit(CaptureText))
         {
-            CommitCapture();
+            _ = CommitCapture();
             Dock();
             return;
         }
@@ -120,7 +120,7 @@ public sealed partial class AppModel
         try
         {
             StopWaiting();
-            CommitCapture();
+            _ = CommitCapture();
             Dock();
         }
         finally
