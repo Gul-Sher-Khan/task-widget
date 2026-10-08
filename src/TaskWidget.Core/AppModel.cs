@@ -18,6 +18,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     string? pendingSettings;
     int dirty;
     int disposed;
+    bool loading;
 
     public AppModel(string dataFolder, IClock clock)
     {
@@ -25,12 +26,24 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         Directory.CreateDirectory(dataFolder);
         tasksPath = Path.Combine(dataFolder, "tasks.json");
         settingsPath = Path.Combine(dataFolder, "settings.json");
-        Tasks.CollectionChanged += (_, _) => OnPropertyChanged(nameof(OpenTaskCount));
+        Tasks.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(OpenTaskCount));
+            OnPropertyChanged(nameof(OpenHighCount));
+            OnPropertyChanged(nameof(OpenMediumCount));
+            OnPropertyChanged(nameof(OpenLowCount));
+        };
         Load();
     }
 
     [ObservableProperty]
     public partial string CaptureText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool Docked { get; private set; }
+
+    [ObservableProperty]
+    public partial bool Attention { get; set; }
 
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
@@ -38,10 +51,30 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public int RowsBeforeScrolling => 8;
 
+    public int OpenHighCount => Tasks.Count(task => task.Priority == Priority.High);
+
+    public int OpenMediumCount => Tasks.Count(task => task.Priority == Priority.Medium);
+
+    public int OpenLowCount => Tasks.Count(task => task.Priority == Priority.Low);
+
     [ObservableProperty]
     public partial bool HasManualPositions { get; private set; }
 
     public void UpdateDraft(string text) => CaptureText = text;
+
+    public void Dock()
+    {
+        if (Docked)
+            return;
+        Docked = true;
+    }
+
+    public void Expand()
+    {
+        if (!Docked)
+            return;
+        Docked = false;
+    }
 
     public void CommitCapture()
     {
@@ -102,13 +135,17 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     partial void OnCaptureTextChanged(string value) => MarkDirty();
 
+    partial void OnDockedChanged(bool value) => MarkDirty();
+
     void MarkDirty()
     {
-        if (Volatile.Read(ref disposed) != 0)
+        if (loading || Volatile.Read(ref disposed) != 0)
             return;
 
         var tasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
-        var settings = JsonSerializer.Serialize(new SettingsFile { SchemaVersion = 1 }, WidgetJsonContext.Default.SettingsFile);
+        var settings = JsonSerializer.Serialize(
+            new SettingsFile { SchemaVersion = 1, Docked = Docked },
+            WidgetJsonContext.Default.SettingsFile);
         lock (gate)
         {
             pendingTasks = tasks;
@@ -146,9 +183,21 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     void Load()
     {
-        if (!File.Exists(tasksPath))
-            return;
+        loading = true;
+        try
+        {
+            if (File.Exists(tasksPath))
+                LoadTasks();
+            LoadSettings();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
 
+    void LoadTasks()
+    {
         var file = JsonSerializer.Deserialize(File.ReadAllText(tasksPath), WidgetJsonContext.Default.TaskFile);
         if (file is null)
             return;
@@ -203,6 +252,27 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             return byAge;
 
         return SpokenOf(a).CompareTo(SpokenOf(b));
+    }
+
+    void LoadSettings()
+    {
+        if (!File.Exists(settingsPath))
+            return;
+
+        SettingsFile? file;
+        try
+        {
+            file = JsonSerializer.Deserialize(File.ReadAllText(settingsPath), WidgetJsonContext.Default.SettingsFile);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (file is null)
+            return;
+
+        Docked = file.Docked;
     }
 
     static Priority ParsePriority(string value) => value switch

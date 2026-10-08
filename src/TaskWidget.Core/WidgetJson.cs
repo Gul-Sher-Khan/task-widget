@@ -23,6 +23,7 @@ sealed class TaskRecord
 sealed class SettingsFile
 {
     public int SchemaVersion { get; set; }
+    public bool Docked { get; set; }
 }
 
 [JsonSourceGenerationOptions(
