@@ -14,30 +14,30 @@ The Widget (the "Fluent list" design chosen in round 1), its Capture box, Settin
 - **Updates** (added by [Packaging, updates and signing](https://github.com/Gul-Sher-Khan/task-widget/issues/19)): Settings → About shows the version, then one update row below a hairline: "You're up to date" / "Couldn't check for updates" with **Check now**, "Checking for updates…", "Version x.y.z is available" with **What's new** and an accent **Update**, or a download bar with "Task Widget restarts to finish". Then the **Check for updates automatically** toggle (on) and its privacy caption. An available update also lights the attention dot. Check now finds 0.2.0, and the next check fails, so you can see both states.
 - **Contrast themes:** follows Windows. Every Priority uses the system text colour (the badge shape carries the level), there's no backdrop, and hairlines use the text colour.
 
-## Round 4 (open): first-run, banners, sign-in and Capture states
+## What's decided (round 4): first-run, banners, sign-in and Capture states
 
-For [First-run, banner and Capture-state screens](https://github.com/Gul-Sher-Khan/task-widget/issues/22). Behaviour and copy come from [First run, sign-in and privacy disclosure](https://github.com/Gul-Sher-Khan/task-widget/issues/20) and [Capture flow and failure handling](https://github.com/Gul-Sher-Khan/task-widget/issues/9); this round decides only look and motion. Three variants, switched with **Round 4 variant** on the control bar:
+From [First-run, banner and Capture-state screens](https://github.com/Gul-Sher-Khan/task-widget/issues/22). Behaviour and copy come from [First run, sign-in and privacy disclosure](https://github.com/Gul-Sher-Khan/task-widget/issues/20) and [Capture flow and failure handling](https://github.com/Gul-Sher-Khan/task-widget/issues/9). Variant A ("Quiet") was picked for every surface; B and C are in commit 8acd662 of this branch's history.
 
-- **A Quiet:** plain lines, no card, link-style actions. Banner is a tinted strip under the header; a failed row has an error icon, a red reason and text links; the dictation wait changes the placeholder and runs a thin bar under the box.
-- **B Cards:** the welcome card uses keycaps; banners and sign-in errors are WinUI InfoBars; a failed row is a tinted card with buttons (the primary one in the accent); a waiting row carries its reason in a chip; the dictation wait pulses the box border in the accent.
-- **C Header-led:** the welcome card is centred and led by the hotkey line; the banner is a full-width band above the header; waiting and failed rows are one compact line (a failed row expands to show the reason and icon actions); the dictation wait covers the box with a mic and a bar that drains over 4 s; Re-interpret adds a sweep across the dimmed Tasks.
+- **Welcome card** (`Variants/Round4/Welcome.xaml`): plain lines, no card chrome, under the Capture box. Sign in with ChatGPT (accent, full width), the privacy line with **Details**, a hairline, then "Tap Ctrl+Shift anywhere to capture" (live hotkey) and "Collapse to the Dock with ⌄". It stays above any waiting Captures until the first sign-in. After that, an empty list shows only the hotkey line, centred and faint. This replaces "All clear.".
+- **Sign-in states** (`SignInBlock.xaml`, shared by the welcome card and Settings › Connection): the button is replaced in place by a status line. Waiting shows a ring, "Waiting for your browser…" and a **Cancel** link. Failure shows an error icon, "Sign-in didn't finish" (cause in the tooltip) and a **Try again** link. If the plan isn't eligible, the plan message shows in the error colour with "See ChatGPT plans" above the button.
+- **Header banner** (`Banner.xaml`): a tinted strip under the header, with hairlines above and below. It has a status icon, the message and link actions. The tint and icon use WinUI's status brushes: Attention for the newer version and recovered banners, Caution for signed out and started empty, Critical when sign-in fails from the banner. The signed-out banner runs sign-in in place: the icon becomes a ring and the message becomes the sign-in state.
+- **Capture rows** (`CaptureRow.xaml`): a **waiting** row has a clock icon, the Capture text muted and the reason faint. A **failed** row has an error icon, the Capture text, the reason in the error colour (detail in the tooltip) and links: Retry · Edit · Make a Task as-is · Discard. The primary link is semibold: Make a Task as-is for "No task found in this", Retry otherwise. **Edit / Re-interpret** opens the text in place with a hint line. The pending row is the finalized one.
+- **Waiting for dictation…**: the placeholder changes and a thin indeterminate bar runs along the bottom of the Capture box for up to 4 s.
+- **Re-interpret**: the Capture's old Tasks fade to 45% while a "Re-interpreting…" pending row sits on top.
+- **Read-only** (newer version): the tick, Priority and Effort fade to 40% and are disabled. The Capture box shows a lock, and its tooltip explains why Enter doesn't commit.
+- **Settings › Connection**: ChatGPT only, with no API-key option (ADR 0003). The caption adds "Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." About links to the README's Privacy section.
+- **Motion**: rows, banners and the welcome card fade in while sliding down 8 px (`EnterMs` 220, ease-out) and fade out over `LeaveMs` 120. The window's height animation moves everything else. Dimming takes `DimMs` 180.
+- **Copy written in this round** (kept): the signed-out banner ("You're signed out of ChatGPT. New Captures wait until you sign in."), the plan-lapsed reason ("Your ChatGPT plan can't be used here"), "See ChatGPT plans", the edit hints ("Fix the text, then Enter to retry · Esc to cancel" / "…to re-interpret…"), the read-only tooltip ("Saved by a newer Task Widget. Update to add Captures.") and the failure tooltips in `Model.cs`.
 
-Shared by all three: Settings › Connection is ChatGPT only (the API-key option is gone) with the privacy line in its caption; About links to the README's Privacy section; Re-interpret dims the Capture's old Tasks to 45% and puts a "Re-interpreting…" pending row on top; read-only rows grey their tick, Priority and Effort, and the Capture box shows a lock.
-
-New motion tokens are at the bottom of `Motion.xaml` (Enter/Leave, Dim, Shimmer, DictationWait/Pulse). `Styles.xaml`'s `Bare` button now dims to 40% when disabled (seen only in the read-only state).
-
-**Control bar, round 4 rows:** Round 4 variant, Scene (Everyday, First run, Empty signed in, Newer version, Signed out, Recovered, Started empty, Capture states), Sign-in outcome (succeeds / didn't finish / plan not eligible), Next Capture outcome (ok / timeout / 429 / bad reply / zero Tasks / plan lapsed), Offline, Hold pending (freezes pending rows; the Capture states scene opens with it on), Dictation (arrives / never comes) and **Tap with empty box**.
-
-Start-up overrides: `LOOK_VARIANT` 0–2, `LOOK_SCENE` 0–7, `LOOK_SIGNIN` 0–3 (idle, waiting, didn't finish, not eligible), `LOOK_DICTATION=1`.
-
-Copy this round had to invent, for review: the signed-out banner ("You're signed out of ChatGPT. New Captures wait until you sign in."), the plan-lapsed reason ("Your ChatGPT plan can't be used here"), "See ChatGPT plans", the Edit / Re-interpret hint ("Fix the text, then Enter to retry · Esc to cancel"), the read-only Capture box tooltip, and the failure tooltips.
+**Control bar, round 4 rows:** Scene (Everyday, First run, Empty signed in, Newer version, Signed out, Recovered, Started empty, Capture states), Sign-in outcome, Next Capture outcome (ok / timeout / 429 / bad reply / zero Tasks / plan lapsed), Offline, Hold pending (the Capture states scene opens with it on), Dictation (arrives / never comes) and **Tap with empty box**. Start-up overrides: `LOOK_SCENE` 0–7, `LOOK_SIGNIN` 0–3, `LOOK_DICTATION=1`.
 
 ## Binding files for the implementation
 
 - `Tokens.xaml`: colours for Dark, Light and HighContrast.
 - `Motion.xaml`: every duration, distance and easing curve.
 - `Styles.xaml`: the bare icon button and the plain list row.
-- `Variants/WidgetA.xaml`, `Variants/SettingsPanel.xaml`, `Variants/DockCapture.xaml`, `Variants/UndoPill.xaml`, `Shell/Icons.cs`: layout, spacing, copy and icon geometry.
+- `Variants/WidgetA.xaml`, `Variants/SettingsPanel.xaml`, `Variants/DockCapture.xaml`, `Variants/UndoPill.xaml`, `Variants/Round4/*.xaml`, `Shell/Icons.cs`: layout, spacing, copy and icon geometry.
+- `Shell/Helpers.cs` (`Fx`): the round-4 enter/leave and dim animations.
 
 ```
 dotnet run --project prototypes/widget-look

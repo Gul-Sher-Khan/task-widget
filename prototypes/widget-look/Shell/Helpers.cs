@@ -72,10 +72,6 @@ public static class F
     public static string ReadOnlyTip(bool ro) => ro ? "Saved by a newer Task Widget. Update to add Captures." : null;
     // Read-only rows: Done Tasks stay greyed the same way, so only the newer-version state disables controls.
     public static bool Editable(bool _) => Shell.Prefs.Editable;
-    public static Visibility PriV(bool pending, bool dimmed) => pending || (dimmed && Shell.Prefs.VB) ? Visibility.Collapsed : Visibility.Visible;
-    public static Visibility DimRing(bool dimmed) => dimmed && Shell.Prefs.VB ? Visibility.Visible : Visibility.Collapsed;
-    public static bool DimRingOn(bool dimmed) => dimmed && Shell.Prefs.VB;
-    public static Visibility DimShimmer(bool dimmed) => dimmed && Shell.Prefs.VC ? Visibility.Visible : Visibility.Collapsed;
 
     // A fresh Geometry per call: one instance cannot be shared between two Paths.
     static Geometry Geo(string d) => (Geometry)XamlReader.Load(
@@ -170,74 +166,5 @@ public static class Fx
         }));
     public static bool GetDimFade(UIElement e) => (bool)e.GetValue(DimFadeProperty);
     public static void SetDimFade(UIElement e, bool v) => e.SetValue(DimFadeProperty, v);
-
-    // Pulse="True": opacity breathes 1 → 0.35 → 1 every DictationPulseMs while the element is in the tree.
-    public static readonly DependencyProperty PulseProperty = DependencyProperty.RegisterAttached(
-        "Pulse", typeof(bool), typeof(Fx), new PropertyMetadata(false, (d, e) =>
-        {
-            if (!(bool)e.NewValue) return;
-            var el = (UIElement)d;
-            var v = ElementCompositionPreview.GetElementVisual(el);
-            var a = v.Compositor.CreateScalarKeyFrameAnimation();
-            a.InsertKeyFrame(0, 1); a.InsertKeyFrame(0.5f, 0.35f); a.InsertKeyFrame(1, 1);
-            a.Duration = TimeSpan.FromMilliseconds(Shell.Ms("DictationPulseMs"));
-            a.IterationBehavior = Microsoft.UI.Composition.AnimationIterationBehavior.Forever;
-            v.StartAnimation("Opacity", a);
-        }));
-    public static bool GetPulse(UIElement e) => (bool)e.GetValue(PulseProperty);
-    public static void SetPulse(UIElement e, bool v) => e.SetValue(PulseProperty, v);
-
-    // Drain="True": scales X from 1 to 0 (right edge to the left) over DictationWaitMs, restarting each time it's shown.
-    public static readonly DependencyProperty DrainProperty = DependencyProperty.RegisterAttached(
-        "Drain", typeof(bool), typeof(Fx), new PropertyMetadata(false, (d, e) =>
-        {
-            if (!(bool)e.NewValue) return;
-            var el = (FrameworkElement)d;
-            void Start()
-            {
-                if (el.Visibility != Visibility.Visible) return;
-                var v = ElementCompositionPreview.GetElementVisual(el);
-                var a = v.Compositor.CreateScalarKeyFrameAnimation();
-                a.InsertKeyFrame(0, 1); a.InsertKeyFrame(1, 0, v.Compositor.CreateLinearEasingFunction());
-                a.Duration = TimeSpan.FromMilliseconds(Shell.Ms("DictationWaitMs"));
-                v.CenterPoint = new System.Numerics.Vector3(0, 0, 0);
-                v.StartAnimation("Scale.X", a);
-            }
-            el.Loaded += (_, _) => Start();
-            el.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Start());
-        }));
-    public static bool GetDrain(UIElement e) => (bool)e.GetValue(DrainProperty);
-    public static void SetDrain(UIElement e, bool v) => e.SetValue(DrainProperty, v);
 }
 
-// Variant C: a soft highlight that sweeps across a dimmed row every ShimmerMs.
-public sealed class Shimmer : Grid
-{
-    readonly Microsoft.UI.Xaml.Shapes.Rectangle band = new() { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
-
-    public Shimmer()
-    {
-        IsHitTestVisible = false;
-        var stops = new GradientStopCollection
-        {
-            new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(0, 255, 255, 255), Offset = 0 },
-            new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(28, 255, 255, 255), Offset = 0.5 },
-            new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(0, 255, 255, 255), Offset = 1 },
-        };
-        band.Fill = new LinearGradientBrush(stops, 0);
-        Children.Add(band);
-        ElementCompositionPreview.SetIsTranslationEnabled(band, true);
-        SizeChanged += (_, e) => Start(e.NewSize.Width);
-    }
-
-    void Start(double w)
-    {
-        if (w <= 0) return;
-        var v = ElementCompositionPreview.GetElementVisual(band);
-        var a = v.Compositor.CreateScalarKeyFrameAnimation();
-        a.InsertKeyFrame(0, -120); a.InsertKeyFrame(1, (float)w, v.Compositor.CreateLinearEasingFunction());
-        a.Duration = TimeSpan.FromMilliseconds(Shell.Ms("ShimmerMs"));
-        a.IterationBehavior = Microsoft.UI.Composition.AnimationIterationBehavior.Forever;
-        v.StartAnimation("Translation.X", a);
-    }
-}

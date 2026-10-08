@@ -16,7 +16,7 @@ public sealed partial class ProtoBar : Window
     readonly TextBlock state = Label(11, false);
     readonly Button contrast, slow, theme, backdrop;
     // Round 4
-    readonly Button variant, scene, signIn, outcome, offline, hold, dictation;
+    readonly Button scene, signIn, outcome, offline, hold, dictation;
     readonly TextBlock note = Label(11, true);
     static readonly string[] Samples =
     {
@@ -52,15 +52,14 @@ public sealed partial class ProtoBar : Window
             Btn("3 / 9 / 15 Tasks", () => { int n = Shell.Store.CountOpen; Shell.Store.Seed(n < 6 ? 9 : n < 12 ? 15 : 3); Refresh(); }),
             Btn("✕ Quit", () => Application.Current.Exit()));
 
-        // Round 4: variant, scene, and what the simulated sign-in / Capture / dictation do next.
-        variant = Btn("", () => { P.Variant = (P.Variant + 1) % 3; Shell.Apply(); });
+        // Round 4: scene, and what the simulated sign-in / Capture / dictation do next.
         scene = Btn("", () => Shell.Scene((Shell.SceneIndex + 1) % Shell.Scenes.Length));
         signIn = Btn("", () => { P.SignInOutcome = (P.SignInOutcome + 1) % Prefs.SignInOutcomes.Length; Refresh(); });
         outcome = Btn("", () => { P.CaptureOutcome = (P.CaptureOutcome + 1) % Prefs.CaptureOutcomes.Length; Refresh(); });
         offline = Btn("", () => { P.Offline = !P.Offline; if (!P.Offline) Shell.Store.RunWaiting(); });
         hold = Btn("", () => { P.HoldPending = !P.HoldPending; if (!P.HoldPending) Shell.Store.ReleaseHeld(); Refresh(); });
         dictation = Btn("", () => { P.DictationArrives = !P.DictationArrives; Refresh(); });
-        var row3 = Row(variant, scene, signIn, outcome);
+        var row3 = Row(scene, signIn, outcome);
         var row4 = Row(offline, hold, dictation, Btn("Tap with empty box", Shell.SimulateDictation));
 
         var col = new StackPanel { Spacing = 5, Padding = new Thickness(12, 8, 12, 8) };
@@ -88,7 +87,6 @@ public sealed partial class ProtoBar : Window
         Text(slow, "Slow-mo (5x): " + (P.SlowMo ? "on" : "off"));
         Text(theme, "Theme: " + Shell.ThemeNames[P.Theme]);
         Text(backdrop, "Backdrop: " + Shell.BackdropNames[P.Backdrop]);
-        Text(variant, "Round 4 variant: " + Prefs.VariantNames[P.Variant]);
         Text(scene, "Scene: " + Shell.Scenes[Shell.SceneIndex]);
         Text(signIn, "Sign-in: " + Prefs.SignInOutcomes[P.SignInOutcome]);
         Text(outcome, "Next Capture: " + Prefs.CaptureOutcomes[P.CaptureOutcome]);

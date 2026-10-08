@@ -60,31 +60,10 @@ public sealed partial class BannerView : UserControl, INotifyPropertyChanged
         _ => InfoBarSeverity.Informational,
     };
 
-    public string Glyph => Severity switch { InfoBarSeverity.Error => "", InfoBarSeverity.Warning => "", _ => "" };
-
-    public Brush IconBrush => Theme(Severity switch
-    {
-        InfoBarSeverity.Error => "SystemFillColorCriticalBrush",
-        InfoBarSeverity.Warning => "SystemFillColorCautionBrush",
-        _ => "AccentFillColorDefaultBrush",
-    });
-
-    public Brush BackBrush => Theme(Severity switch
-    {
-        InfoBarSeverity.Error => "SystemFillColorCriticalBackgroundBrush",
-        InfoBarSeverity.Warning => "SystemFillColorCautionBackgroundBrush",
-        _ => "SystemFillColorAttentionBackgroundBrush",
-    });
-
-    // WinUI's own status brushes, resolved for the Widget's current theme (they cover contrast themes too).
-    Brush Theme(string key)
-    {
-        var d = Application.Current.Resources;
-        string theme = Shell.SystemContrast ? "HighContrast" : Shell.Theme == ElementTheme.Dark ? "Dark" : "Light";
-        foreach (var md in d.MergedDictionaries)
-            if (md.ThemeDictionaries.TryGetValue(theme, out var td) && ((ResourceDictionary)td).TryGetValue(key, out var b)) return (Brush)b;
-        return d.TryGetValue(key, out var any) ? (Brush)any : null;
-    }
+    public bool IsInfo => Severity == InfoBarSeverity.Informational;
+    public bool IsWarning => Severity == InfoBarSeverity.Warning;
+    public bool IsError => Severity == InfoBarSeverity.Error;
+    public bool NotBusy => !Busy;
 
     void Primary_Click(object s, RoutedEventArgs e)
     {
@@ -104,5 +83,4 @@ public sealed partial class BannerView : UserControl, INotifyPropertyChanged
     }
 
     void Dismiss_Click(object s, RoutedEventArgs e) { P.Recovered = false; P.StartedEmpty = false; }
-    void Close_Click(InfoBar s, object e) { P.Recovered = false; P.StartedEmpty = false; }
 }

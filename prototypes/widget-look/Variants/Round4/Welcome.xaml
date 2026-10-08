@@ -1,31 +1,16 @@
-<!-- PROTOTYPE · ROUND 4 · The empty list. Before the first sign-in it holds the welcome card (Card="True"):
-     Sign in with ChatGPT, the privacy line with a Details link, the hotkey line (live from Settings) and the Dock line
-     with the real collapse icon. After sign-in, an empty list shows only the hotkey line (Card="False").
-     A: plain lines, no card.  B: a card with keycaps.  C: centred, led by the hotkey. -->
+<!-- PROTOTYPE · ROUND 4 (finalized: variant A) · The empty list. Before the first sign-in it holds the welcome card
+     (Card="True"): Sign in with ChatGPT, the privacy line with a Details link, the hotkey line (live from Settings) and
+     the Dock line with the real collapse icon, as plain lines with no card chrome. After sign-in, an empty list shows
+     only the hotkey line (Card="False"). -->
 <UserControl
     x:Class="Look.Welcome"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Look">
-    <UserControl.Resources>
-        <Style x:Key="Caption" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11.5" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Foreground" Value="{ThemeResource FaintTextBrush}" />
-        </Style>
-        <DataTemplate x:Key="Keycap" x:DataType="x:String">
-            <Border CornerRadius="4" Padding="6,1,6,2" Background="{ThemeResource ChipBrush}" BorderBrush="{ThemeResource HairlineBrush}"
-                    BorderThickness="1,1,1,2" Margin="0,0,4,0">
-                <TextBlock Text="{x:Bind}" FontSize="12" FontWeight="SemiBold" />
-            </Border>
-        </DataTemplate>
-    </UserControl.Resources>
-
     <Grid>
-        <!-- ================= A · Quiet ================= -->
-        <StackPanel Padding="16,6,16,12" Spacing="10" Visibility="{x:Bind local:F.Both(P.VA, Card)}">
+        <StackPanel Padding="16,6,16,12" Spacing="10" Visibility="{x:Bind local:F.V(Card)}">
             <local:SignInBlock />
-            <TextBlock Style="{StaticResource Caption}">
+            <TextBlock FontSize="11.5" TextWrapping="Wrap" Foreground="{ThemeResource FaintTextBrush}">
                 <Run Text="Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
                 <Hyperlink NavigateUri="https://github.com/Gul-Sher-Khan/task-widget#privacy">Details</Hyperlink>
             </TextBlock>
@@ -39,72 +24,6 @@
             </StackPanel>
         </StackPanel>
         <TextBlock Text="{x:Bind local:F.TapLine(P.Hotkey), Mode=OneWay}" HorizontalAlignment="Center" Margin="0,18,0,22"
-                   Foreground="{ThemeResource FaintTextBrush}" Visibility="{x:Bind local:F.Both(P.VA, NoCard)}" />
-
-        <!-- ================= B · Cards ================= -->
-        <Border Margin="12,2,12,8" Padding="14,12,14,12" CornerRadius="8" Background="{ThemeResource CardBrush}"
-                BorderBrush="{ThemeResource HairlineBrush}" BorderThickness="1" Visibility="{x:Bind local:F.Both(P.VB, Card)}">
-            <StackPanel Spacing="10">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Tap" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <ItemsControl ItemsSource="{x:Bind P.HotkeyKeys, Mode=OneWay}" ItemTemplate="{StaticResource Keycap}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                    <TextBlock Text="anywhere to capture" FontSize="13" VerticalAlignment="Center" Margin="2,0,0,0" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="Collapse to the Dock with" FontSize="13" VerticalAlignment="Center" />
-                    <Border CornerRadius="4" Width="24" Height="22" Background="{ThemeResource ChipBrush}"
-                            BorderBrush="{ThemeResource HairlineBrush}" BorderThickness="1">
-                        <FontIcon Glyph="&#xE70E;" FontSize="11" />
-                    </Border>
-                </StackPanel>
-                <Rectangle Height="1" Fill="{ThemeResource HairlineBrush}" Margin="-14,2,-14,2" />
-                <local:SignInBlock />
-                <TextBlock Style="{StaticResource Caption}">
-                    <Run Text="Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
-                    <Hyperlink NavigateUri="https://github.com/Gul-Sher-Khan/task-widget#privacy">Details</Hyperlink>
-                </TextBlock>
-            </StackPanel>
-        </Border>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,20" Opacity="0.7"
-                    Visibility="{x:Bind local:F.Both(P.VB, NoCard)}">
-            <TextBlock Text="Tap" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <ItemsControl ItemsSource="{x:Bind P.HotkeyKeys, Mode=OneWay}" ItemTemplate="{StaticResource Keycap}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-            </ItemsControl>
-            <TextBlock Text="anywhere to capture" FontSize="13" VerticalAlignment="Center" Margin="2,0,0,0" />
-        </StackPanel>
-
-        <!-- ================= C · Header-led ================= -->
-        <StackPanel Padding="20,10,20,16" Spacing="6" Visibility="{x:Bind local:F.Both(P.VC, Card)}">
-            <Grid Width="44" Height="44" HorizontalAlignment="Center" Margin="0,0,0,4">
-                <Ellipse Fill="{ThemeResource SubtleFillColorSecondaryBrush}" />
-                <FontIcon Glyph="&#xE765;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-            </Grid>
-            <TextBlock Text="{x:Bind local:F.TapLine(P.Hotkey), Mode=OneWay}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
-            <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
-                <TextBlock Text="Collapse to the Dock with" FontSize="12.5" Foreground="{ThemeResource MutedTextBrush}" />
-                <FontIcon Glyph="&#xE70E;" FontSize="11" Foreground="{ThemeResource MutedTextBrush}" />
-            </StackPanel>
-            <local:SignInBlock Centered="True" Margin="0,12,0,4" HorizontalAlignment="Center" />
-            <TextBlock Style="{StaticResource Caption}" TextAlignment="Center" MaxWidth="290">
-                <Run Text="Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
-                <Hyperlink NavigateUri="https://github.com/Gul-Sher-Khan/task-widget#privacy">Details</Hyperlink>
-            </TextBlock>
-        </StackPanel>
-        <StackPanel Padding="0,16,0,20" Spacing="8" Visibility="{x:Bind local:F.Both(P.VC, NoCard)}">
-            <FontIcon Glyph="&#xE765;" FontSize="18" Foreground="{ThemeResource FaintTextBrush}" />
-            <TextBlock Text="{x:Bind local:F.TapLine(P.Hotkey), Mode=OneWay}" FontSize="13" HorizontalAlignment="Center"
-                       Foreground="{ThemeResource MutedTextBrush}" />
-        </StackPanel>
+                   Foreground="{ThemeResource FaintTextBrush}" Visibility="{x:Bind local:F.NV(Card)}" />
     </Grid>
 </UserControl>

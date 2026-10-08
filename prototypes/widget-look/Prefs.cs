@@ -9,14 +9,6 @@ public sealed class Prefs : Bindable
     // Review switches (prototype only): approximate a contrast theme; run every animation 5x slower.
     public bool ContrastPreview, SlowMo;
 
-    // ---- Round 4 variant (prototype only): 0 A "Quiet", 1 B "Cards", 2 C "Header-led" ----
-    public static readonly string[] VariantNames = { "A Quiet", "B Cards", "C Header-led" };
-    int variant;
-    public int Variant { get => variant; set { if (Set(ref variant, value)) { Raise(nameof(VA)); Raise(nameof(VB)); Raise(nameof(VC)); } } }
-    public bool VA => variant == 0;
-    public bool VB => variant == 1;
-    public bool VC => variant == 2;
-
     // ---- Settings ----
     int theme, backdrop, maxRows = 8, model;
     bool signedIn = true, launchAtLogin = true, showSettings, recording;
@@ -85,9 +77,7 @@ public sealed class Prefs : Bindable
                           : startedEmpty ? Banner.StartedEmpty
                           : Banner.None;
     public bool HasBanner => Banner != Banner.None;
-    public bool BannerAbove => HasBanner && VC; // variant C: a band above the header
-    public bool BannerBelow => HasBanner && !VC;
-    void RaiseBanner() { Raise(nameof(Banner)); Raise(nameof(HasBanner)); Raise(nameof(BannerAbove)); Raise(nameof(BannerBelow)); }
+    void RaiseBanner() { Raise(nameof(Banner)); Raise(nameof(HasBanner)); }
 
     // ---- "Waiting for dictation…" (tap Ctrl+Shift on an empty box) ----
     bool waitingDictation;

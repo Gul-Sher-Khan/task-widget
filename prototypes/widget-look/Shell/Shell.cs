@@ -42,8 +42,7 @@ public static class Shell
         Prefs.Backdrop = Env("LOOK_BACKDROP");
         Prefs.ShowSettings = Env("LOOK_SETTINGS") == 1;
         if (Env("LOOK_UPDATE") == 1) { Prefs.Update = Prefs.Upd.Available; Prefs.CheckedWhen = "Checked just now"; Store.Attention = true; }
-        // Round 4: LOOK_VARIANT 0-2 (A/B/C), LOOK_SCENE 0-7 (see Scenes).
-        Prefs.Variant = Env("LOOK_VARIANT");
+        // Round 4: LOOK_SCENE 0-7 (see Scenes).
         Scene(Env("LOOK_SCENE"), apply: false);
         // LOOK_SIGNIN 0-3: Idle, Waiting, Failed, NotEligible (for screenshots of the sign-in states).
         Prefs.SignInCause = Causes[0];
