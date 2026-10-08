@@ -11,6 +11,7 @@ The Widget (the "Fluent list" design chosen in round 1), its Capture box, Settin
 - **Effort:** a duration chip, `15m` / `1h` / `1h+`; the tooltip spells out Quick / Short / Long.
 - **Dock:** the Capture bar, 44 px, centred 8 px under the top edge. It looks like an input ("Capture a thought…"); a click opens the Widget with the Capture box focused. Per-Priority counts sit at the right, the attention dot top-right, and "Interpreting…" with a spinner shows while a Capture is processing.
 - **Settings** (gear in the Widget header): Connection (ChatGPT account and model, or API key with Groq / OpenRouter / Custom, base URL, key, model, test), Hotkey recorder, Theme, Backdrop, rows before scrolling, start with Windows, About. Sign-in, key test and the recorder are simulated.
+- **Updates** (added by [Packaging, updates and signing](https://github.com/Gul-Sher-Khan/task-widget/issues/19)): Settings → About shows the version, then one update row below a hairline: "You're up to date" / "Couldn't check for updates" with **Check now**, "Checking for updates…", "Version x.y.z is available" with **What's new** and an accent **Update**, or a download bar with "Task Widget restarts to finish". Then the **Check for updates automatically** toggle (on) and its privacy caption. An available update also lights the attention dot. Check now finds 0.2.0, and the next check fails, so you can see both states.
 - **Contrast themes:** follows Windows. Every Priority uses the system text colour (the badge shape carries the level), there's no backdrop, and hairlines use the text colour.
 
 ## Binding files for the implementation
@@ -30,7 +31,7 @@ The black/yellow bar at the bottom of the screen is prototype tooling: theme (Sy
 
 In the Widget: tap **Ctrl+Shift** to raise it with the Capture box focused (tap again commits and ends the session, Esc drops it); Enter adds a Capture, Shift+Enter is a newline; click a row to open its Details; tick to strike (tick again within 1.5 s to cancel); click the Priority/Effort to cycle it; double-click a Title or press E to edit; right-click or Del to delete; drag a row, or Ctrl+↑/↓, to reorder (the Re-sort icon then appears); Space ticks, Enter expands, Ctrl+Z / Ctrl+Y undo and redo.
 
-Start-up overrides for screenshots: `LOOK_THEME` 0–2, `LOOK_BACKDROP` 0–3, `LOOK_DOCKED=1`, `LOOK_BUSY=1`, `LOOK_CONTRAST=1`, `LOOK_SETTINGS=1`, `LOOK_NOBAR=1`.
+Start-up overrides for screenshots: `LOOK_THEME` 0–2, `LOOK_BACKDROP` 0–3, `LOOK_DOCKED=1`, `LOOK_BUSY=1`, `LOOK_CONTRAST=1`, `LOOK_SETTINGS=1`, `LOOK_NOBAR=1`, `LOOK_UPDATE=1` (an update is available, Settings scrolled to About).
 
 ## Known prototype limits
 

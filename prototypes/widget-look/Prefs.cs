@@ -56,4 +56,34 @@ public sealed class Prefs : Bindable
     public string Hotkey { get => hotkey; set => Set(ref hotkey, value); }
     public bool Recording { get => recording; set { if (Set(ref recording, value)) Raise(nameof(NotRecording)); } }
     public bool NotRecording => !recording;
+
+    // ---- Updates (Packaging, updates and signing): check-and-notify from GitHub Releases, never silent ----
+    public enum Upd { Current, Checking, Available, Downloading, Failed }
+    bool autoUpdate = true;
+    Upd update;
+    string version = "0.1.0", checkedWhen = "Checked today, 09:12";
+    double downloaded;
+
+    public bool AutoUpdate { get => autoUpdate; set => Set(ref autoUpdate, value); }
+    public string Version { get => version; set { if (Set(ref version, value)) Raise(nameof(VersionLine)); } }
+    public string VersionLine => "Task Widget " + version;
+    public string NewVersion => "0.2.0";
+    public string CheckedWhen { get => checkedWhen; set => Set(ref checkedWhen, value); }
+    public double Downloaded { get => downloaded; set => Set(ref downloaded, value); }
+    public Upd Update
+    {
+        get => update;
+        set
+        {
+            if (!Set(ref update, value)) return;
+            foreach (var n in new[] { nameof(UpdCurrent), nameof(UpdChecking), nameof(UpdAvailable), nameof(UpdDownloading), nameof(UpdFailed), nameof(CanCheck) })
+                Raise(n);
+        }
+    }
+    public bool UpdCurrent => update == Upd.Current;
+    public bool UpdChecking => update == Upd.Checking;
+    public bool UpdAvailable => update == Upd.Available;
+    public bool UpdDownloading => update == Upd.Downloading;
+    public bool UpdFailed => update == Upd.Failed;
+    public bool CanCheck => update is Upd.Current or Upd.Failed;
 }

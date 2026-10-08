@@ -33,6 +33,8 @@ public sealed partial class SettingsPanel : UserControl
         RecordButton.PreviewKeyDown += Record_KeyDown;
         RecordButton.PreviewKeyUp += Record_KeyUp;
         RecordButton.LostFocus += (_, _) => P.Recording = false;
+        // LOOK_UPDATE=1 opens Settings scrolled to About, for screenshots.
+        if (System.Environment.GetEnvironmentVariable("LOOK_UPDATE") == "1") Loaded += (_, _) => Scroller.ChangeView(null, 10000, null, true);
     }
 
     void ConnBar_SelectionChanged(SelectorBar s, SelectorBarSelectionChangedEventArgs e) =>
@@ -44,6 +46,34 @@ public sealed partial class SettingsPanel : UserControl
     {
         P.Testing = true;
         Shell.After(1400, () => { P.Testing = false; P.SignedIn = true; Shell.Store.Attention = false; });
+    }
+
+    // ---- updates: the first check finds 0.2.0; a check while offline (2nd, 4th…) fails ----
+    int checks;
+
+    void CheckNow_Click(object s, RoutedEventArgs e)
+    {
+        P.Update = Prefs.Upd.Checking;
+        bool fail = checks++ % 2 == 1;
+        Shell.After(1200, () =>
+        {
+            P.CheckedWhen = fail ? "No connection. Will try again later." : "Checked just now";
+            P.Update = fail ? Prefs.Upd.Failed : P.Version == P.NewVersion ? Prefs.Upd.Current : Prefs.Upd.Available;
+            if (P.UpdAvailable) Shell.Store.Attention = true;
+        });
+    }
+
+    void Install_Click(object s, RoutedEventArgs e)
+    {
+        P.Downloaded = 0;
+        P.Update = Prefs.Upd.Downloading;
+        for (int i = 1; i <= 10; i++)
+        {
+            double v = i / 10.0;
+            Shell.After(i * 180, () => P.Downloaded = v);
+        }
+        // The real app runs the installer silently and restarts; here we jump straight to the new version.
+        Shell.After(2300, () => { P.Version = P.NewVersion; P.CheckedWhen = "Updated just now"; P.Update = Prefs.Upd.Current; Shell.Store.Attention = false; });
     }
 
     void Test_Click(object s, RoutedEventArgs e)

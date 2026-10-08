@@ -36,11 +36,12 @@ public static class Shell
         dq = DispatcherQueue.GetForCurrentThread();
         Store.Seed(9);
         // Start-up overrides, handy for screenshots: LOOK_THEME 0-2, LOOK_BACKDROP 0-3, LOOK_CONTRAST=1,
-        // LOOK_DOCKED=1, LOOK_BUSY=1, LOOK_SETTINGS=1, LOOK_NOBAR=1.
+        // LOOK_DOCKED=1, LOOK_BUSY=1, LOOK_SETTINGS=1, LOOK_NOBAR=1, LOOK_UPDATE=1 (an update is available).
         Prefs.ContrastPreview = Env("LOOK_CONTRAST") == 1;
         Prefs.Theme = Env("LOOK_THEME");
         Prefs.Backdrop = Env("LOOK_BACKDROP");
         Prefs.ShowSettings = Env("LOOK_SETTINGS") == 1;
+        if (Env("LOOK_UPDATE") == 1) { Prefs.Update = Prefs.Upd.Available; Prefs.CheckedWhen = "Checked just now"; Store.Attention = true; }
         // Fires for dark/light, accent and contrast-theme changes alike (HighContrastChanged is unavailable unpackaged).
         ui.ColorValuesChanged += (_, _) => dq.TryEnqueue(Apply);
         Prefs.PropertyChanged += (_, e) =>
