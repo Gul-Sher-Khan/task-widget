@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using TaskWidget.Core;
+using Windows.UI.Text;
 
 namespace TaskWidget;
 
@@ -34,4 +35,15 @@ public static class Row
     };
 
     public static string CountText(int count) => count.ToString();
+
+    public static Visibility When(bool visible) =>
+        visible ? Visibility.Visible : Visibility.Collapsed;
+
+    public static Visibility Unless(bool hidden) =>
+        hidden ? Visibility.Collapsed : Visibility.Visible;
+
+    public static TextDecorations Strike(bool striking) =>
+        striking ? TextDecorations.Strikethrough : TextDecorations.None;
+
+    public static double DoneFade(bool done, bool striking) => done || striking ? 0.5 : 1;
 }

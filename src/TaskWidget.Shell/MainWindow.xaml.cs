@@ -1,9 +1,12 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using TaskWidget.Core;
@@ -40,6 +43,10 @@ public sealed partial class MainWindow : Window
         AppWindow.SetPresenter(presenter);
 
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
+        List.PreviewKeyDown += List_PreviewKeyDown;
+        List.RightTapped += List_RightTapped;
+        Root.KeyDown += Root_KeyDown;
+        ApplyUndoMotion();
         Root.SizeChanged += (_, _) => OnRootSize();
         Closed += (_, _) =>
         {
@@ -50,6 +57,108 @@ public sealed partial class MainWindow : Window
     }
 
     public AppModel Model { get; }
+
+    void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
+
+    void Check_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.Tick(task);
+    }
+
+    void Undo_Click(object sender, RoutedEventArgs e) => Model.Undo();
+
+    void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case VirtualKey.Up:
+                Model.SelectUp();
+                break;
+            case VirtualKey.Down:
+                Model.SelectDown();
+                break;
+            case VirtualKey.Space:
+                Model.TickSelected();
+                break;
+            case VirtualKey.Delete:
+                Model.DeleteSelected();
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    void List_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskRow task)
+            return;
+
+        var item = new MenuFlyoutItem
+        {
+            Text = "Delete",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+        };
+        item.Click += (_, _) => Model.Delete(task);
+        var menu = new MenuFlyout();
+        menu.Items.Add(item);
+        menu.ShowAt(e.OriginalSource as FrameworkElement, e.GetPosition(e.OriginalSource as UIElement));
+        e.Handled = true;
+    }
+
+    void Root_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (Root.XamlRoot is null || FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
+            return;
+
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        if (!ctrl)
+            return;
+
+        if (e.Key == VirtualKey.Z)
+            Model.Undo();
+        else if (e.Key == VirtualKey.Y)
+            Model.Redo();
+        else
+            return;
+
+        e.Handled = true;
+    }
+
+    void ApplyUndoMotion()
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(UndoPill);
+        var compositor = visual.Compositor;
+        var show = compositor.CreateAnimationGroup();
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.Target = "Opacity";
+        fade.InsertKeyFrame(0, 0);
+        fade.InsertKeyFrame(1, 1);
+        fade.Duration = TimeSpan.FromMilliseconds(Motion("UndoFadeInMs"));
+        var rise = compositor.CreateScalarKeyFrameAnimation();
+        rise.Target = "Translation.Y";
+        rise.InsertKeyFrame(0, (float)Motion("UndoRisePx"));
+        rise.InsertKeyFrame(1, 0, EaseOut(compositor));
+        rise.Duration = TimeSpan.FromMilliseconds(Motion("UndoInMs"));
+        show.Add(fade);
+        show.Add(rise);
+        var hide = compositor.CreateScalarKeyFrameAnimation();
+        hide.Target = "Opacity";
+        hide.InsertKeyFrame(1, 0);
+        hide.Duration = TimeSpan.FromMilliseconds(Motion("UndoOutMs"));
+        ElementCompositionPreview.SetIsTranslationEnabled(UndoPill, true);
+        ElementCompositionPreview.SetImplicitShowAnimation(UndoPill, show);
+        ElementCompositionPreview.SetImplicitHideAnimation(UndoPill, hide);
+    }
+
+    static double Motion(string key) => (double)Application.Current.Resources[key];
+
+    static CompositionEasingFunction EaseOut(Compositor compositor) =>
+        compositor.CreateCubicBezierEasingFunction(
+            new Vector2((float)Motion("EaseOutX1"), (float)Motion("EaseOutY1")),
+            new Vector2((float)Motion("EaseOutX2"), (float)Motion("EaseOutY2")));
 
     void Capture_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {

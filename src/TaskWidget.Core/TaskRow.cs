@@ -1,6 +1,8 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace TaskWidget.Core;
 
-public sealed class TaskRow
+public sealed partial class TaskRow : ObservableObject
 {
     public TaskRow(string title, Priority priority, Effort effort, string details)
     {
@@ -14,4 +16,13 @@ public sealed class TaskRow
     public Priority Priority { get; }
     public Effort Effort { get; }
     public string Details { get; }
+    public DateTimeOffset CreatedAt { get; internal set; }
+    public DateTimeOffset? CompletedAt { get; internal set; }
+    public DateTimeOffset? DeletedAt { get; internal set; }
+
+    [ObservableProperty]
+    public partial bool IsStriking { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsDone { get; set; }
 }
