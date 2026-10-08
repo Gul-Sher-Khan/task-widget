@@ -29,6 +29,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     SettingsFile settingsFile = new() { SchemaVersion = 1 };
     readonly Dictionary<TaskRow, DateTimeOffset> created = [];
     readonly Dictionary<TaskRow, int> spoken = [];
+    readonly List<CaptureRecord> captures = [];
+    string accessToken = "";
     string? pendingTasks;
     string? pendingSettings;
     long saveTimer;
@@ -80,17 +82,20 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public partial bool Docked { get; private set; }
 
     [ObservableProperty]
+    public partial bool IsProcessing { get; private set; }
+
+    [ObservableProperty]
     public partial bool Attention { get; set; }
 
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
-    public int OpenTaskCount => Tasks.Count;
+    public int OpenTaskCount => Tasks.Count(task => !task.IsPending);
 
-    public int OpenHighCount => Tasks.Count(task => task.Priority == Priority.High);
+    public int OpenHighCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.High);
 
-    public int OpenMediumCount => Tasks.Count(task => task.Priority == Priority.Medium);
+    public int OpenMediumCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Medium);
 
-    public int OpenLowCount => Tasks.Count(task => task.Priority == Priority.Low);
+    public int OpenLowCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Low);
 
     public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
 
@@ -203,11 +208,17 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         Docked = false;
     }
 
-    public void CommitCapture()
+    public async Task CommitCapture()
     {
         var text = CaptureText.Replace("\r\n", "\n").Trim();
         if (text.Length == 0)
             return;
+
+        if (HasConnection && httpClient is not null)
+        {
+            await Interpret(text);
+            return;
+        }
 
         var title = text.Split('\n')[0].Trim();
         if (title.Length == 0)
@@ -309,7 +320,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         SchemaVersion = 1,
         Draft = CaptureText,
         Manual = HasManualPositions,
-        Tasks = Tasks.Select(task => new TaskRecord
+        Tasks = Tasks.Where(task => !task.IsPending).Select(task => new TaskRecord
         {
             Title = task.Title,
             Details = task.Details,
@@ -317,6 +328,15 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             Effort = EffortName(task.Effort),
             Created = CreatedOf(task),
             Spoken = SpokenOf(task),
+            Capture = task.Capture,
+        }).ToList(),
+        Captures = captures.Select(capture => new CaptureRecord
+        {
+            Id = capture.Id,
+            Text = capture.Text,
+            Interpreted = capture.Interpreted,
+            State = capture.State,
+            Cause = capture.Cause,
         }).ToList(),
     };
 
@@ -328,6 +348,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         WelcomeRetired = settingsFile.WelcomeRetired,
         ExtAgentHostId = settingsFile.ExtAgentHostId,
         IssuedClientId = settingsFile.IssuedClientId,
+        ModelsCachedAt = settingsFile.ModelsCachedAt,
+        Models = settingsFile.Models,
     };
 
     static string PriorityName(Priority priority) => priority switch
@@ -366,7 +388,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
                 record.Title,
                 ParsePriority(record.Priority),
                 ParseEffort(record.Effort),
-                record.Details);
+                record.Details,
+                record.Capture);
             created[row] = record.Created;
             spoken[row] = record.Spoken;
             Tasks.Add(row);
@@ -374,6 +397,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
         HasManualPositions = file.Manual;
         CaptureText = file.Draft;
+        foreach (var capture in file.Captures ?? [])
+            captures.Add(capture);
     }
 
     // New, edited and un-completed Tasks all land here.
@@ -386,7 +411,11 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     int IndexFor(TaskRow task)
     {
-        for (var i = 0; i < Tasks.Count; i++)
+        var i = 0;
+        while (i < Tasks.Count && Tasks[i].IsPending)
+            i++;
+
+        for (; i < Tasks.Count; i++)
         {
             if (CompareRank(task, Tasks[i]) < 0)
                 return i;
@@ -435,6 +464,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             return;
 
         settingsFile = file;
+        settingsFile.Models ??= [];
         Docked = file.Docked;
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
     }
@@ -448,7 +478,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         {
             var plain = protector.Unprotect(File.ReadAllBytes(tokenPath));
             var file = JsonSerializer.Deserialize(plain, WidgetJsonContext.Default.TokenFile);
-            HasConnection = file is not null && file.AccessToken.Length > 0;
+            accessToken = file?.AccessToken ?? "";
+            HasConnection = accessToken.Length > 0;
         }
         catch (JsonException)
         {

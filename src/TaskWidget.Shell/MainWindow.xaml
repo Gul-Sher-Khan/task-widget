@@ -80,16 +80,22 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top">
+                            <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
+                                    Visibility="{x:Bind local:F.NV(IsPending), Mode=OneTime}">
                                 <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
                             </Button>
+                            <ProgressRing Width="16" Height="16" IsActive="{x:Bind IsPending, Mode=OneTime}" VerticalAlignment="Top" Margin="3,2,0,0"
+                                          Visibility="{x:Bind IsPending, Mode=OneTime}" />
 
                             <StackPanel Grid.Column="1" Spacing="4">
                                 <TextBlock Text="{x:Bind Title, Mode=OneTime}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
                                            TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{x:Bind PendingText, Mode=OneTime}" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}"
+                                           Visibility="{x:Bind IsPending, Mode=OneTime}" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Top">
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Top"
+                                        Visibility="{x:Bind local:F.NV(IsPending), Mode=OneTime}">
                                 <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource FaintTextBrush}" Margin="0,0,4,0"
                                           Visibility="{x:Bind local:Row.WhenDetails(Details), Mode=OneTime}" />
                                 <Button Style="{StaticResource Bare}" Padding="4,3,4,3" MinWidth="26">
@@ -120,13 +126,17 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid Width="18" Height="18">
-                    <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                    <ProgressRing Width="16" Height="16" IsActive="False" Visibility="Collapsed" />
+                    <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                              Visibility="{x:Bind local:F.NV(Model.IsProcessing), Mode=OneWay}" />
+                    <ProgressRing Width="16" Height="16" IsActive="{x:Bind Model.IsProcessing, Mode=OneWay}"
+                                  Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
                 </Grid>
                 <TextBlock Grid.Column="1" Text="Capture a thought…" FontSize="13.5"
-                           Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center" />
+                           Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center"
+                           Visibility="{x:Bind local:F.NV(Model.IsProcessing), Mode=OneWay}" />
                 <TextBlock Grid.Column="1" Text="Interpreting…" FontSize="13.5"
-                           Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
+                           Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center"
+                           Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="5"
                                 Visibility="{x:Bind local:Row.WhenPositive(Model.OpenHighCount), Mode=OneWay}">
