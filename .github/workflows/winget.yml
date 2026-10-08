@@ -1,0 +1,81 @@
+name: winget
+
+# Opens a pull request on microsoft/winget-pkgs when a release is published.
+# Drafts do not trigger this. The first run needs a classic PAT with public_repo
+# scope stored as WINGET_TOKEN. Until that secret exists, the job reports and exits.
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    env:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - name: WINGET_TOKEN is not set
+        if: env.WINGET_TOKEN == ''
+        shell: pwsh
+        run: |
+          Write-Host "WINGET_TOKEN is not set, so this run does not open a pull request."
+          Write-Host "Before v1, add a classic PAT with the public_repo scope as WINGET_TOKEN."
+
+      - uses: actions/checkout@v4
+        if: env.WINGET_TOKEN != ''
+
+      - name: Download the installers
+        if: env.WINGET_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          New-Item -ItemType Directory -Force installers | Out-Null
+          gh release download "${{ github.event.release.tag_name }}" --dir installers --pattern "TaskWidget-*-x64.exe" --pattern "TaskWidget-*-arm64.exe"
+          foreach ($arch in "x64", "arm64") {
+            $found = @(Get-ChildItem installers -Filter "TaskWidget-*-$arch.exe")
+            if ($found.Count -ne 1) { throw "Expected one $arch installer in the release." }
+          }
+
+      - name: Install komac
+        if: env.WINGET_TOKEN != ''
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $komac = "2.16.0"
+          $dir = Join-Path $env:RUNNER_TEMP "komac"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Invoke-WebRequest "https://github.com/russellbanks/Komac/releases/download/v$komac/komac-$komac-x86_64-pc-windows-msvc.exe" -OutFile (Join-Path $dir "komac.exe")
+          Add-Content $env:GITHUB_PATH $dir
+
+      - name: Open the winget manifest pull request
+        if: env.WINGET_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $tag = "${{ github.event.release.tag_name }}"
+          if ($tag -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$') {
+            throw "Tag '$tag' is not SemVer."
+          }
+          $version = $tag.Substring(1)
+          $published = "${{ github.event.release.published_at }}"
+          $releaseDate = ([datetime]$published).ToUniversalTime().ToString("yyyy-MM-dd")
+          $x64 = (Get-ChildItem installers -Filter "TaskWidget-*-x64.exe" | Select-Object -First 1).FullName
+          $arm64 = (Get-ChildItem installers -Filter "TaskWidget-*-arm64.exe" | Select-Object -First 1).FullName
+          ./installer/write-winget-manifest.ps1 `
+            -Version $version `
+            -Tag $tag `
+            -Repository "${{ github.repository }}" `
+            -X64Installer $x64 `
+            -Arm64Installer $arm64 `
+            -ReleaseDate $releaseDate `
+            -OutputDir winget-manifest
+          komac submit winget-manifest --yes

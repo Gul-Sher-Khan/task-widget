@@ -1,0 +1,29 @@
+<!-- PROTOTYPE · ROUND 4 (finalized: variant A) · The empty list. Before the first sign-in it holds the welcome card
+     (Card="True"): Sign in with ChatGPT, the privacy line with a Details link, the hotkey line (live from Settings) and
+     the Dock line with the real collapse icon, as plain lines with no card chrome. After sign-in, an empty list shows
+     only the hotkey line (Card="False"). -->
+<UserControl
+    x:Class="TaskWidget.Welcome"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TaskWidget">
+    <Grid>
+        <StackPanel Padding="16,6,16,12" Spacing="10" Visibility="{x:Bind local:F.V(Card)}">
+            <local:SignInBlock x:Name="SignIn" />
+            <TextBlock FontSize="11.5" TextWrapping="Wrap" Foreground="{ThemeResource FaintTextBrush}">
+                <Run Text="Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
+                <Hyperlink NavigateUri="https://github.com/Gul-Sher-Khan/task-widget#privacy">Details</Hyperlink>
+            </TextBlock>
+            <Rectangle Height="1" Fill="{ThemeResource HairlineBrush}" Margin="0,2,0,0" />
+            <StackPanel Spacing="6">
+                <TextBlock Text="{x:Bind local:F.TapLine(Model.Hotkey), Mode=OneWay}" FontSize="13" />
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="Collapse to the Dock with" FontSize="13" />
+                    <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+        <TextBlock Text="{x:Bind local:F.TapLine(Model.Hotkey), Mode=OneWay}" HorizontalAlignment="Center" Margin="0,18,0,22"
+                   Foreground="{ThemeResource FaintTextBrush}" Visibility="{x:Bind local:F.NV(Card)}" />
+    </Grid>
+</UserControl>

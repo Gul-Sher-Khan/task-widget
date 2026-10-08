@@ -20,8 +20,10 @@ public partial class App : Application
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TaskWidget");
-        var window = new MainWindow(new AppModel(folder, new SystemClock()));
+        var model = new AppModel(folder, new SystemClock(), new HttpClientHandler(), new SystemBrowser(), new DpapiProtector());
+        var window = new MainWindow(model);
         gate.RaiseRequested += () => window.DispatcherQueue.TryEnqueue(window.Raise);
+        model.BringToFront += () => window.DispatcherQueue.TryEnqueue(window.Raise);
         gate.Listen();
         window.Closed += (_, _) => gate.Dispose();
         window.Activate();
