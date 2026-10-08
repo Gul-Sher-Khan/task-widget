@@ -70,7 +70,10 @@
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
                          PlaceholderText="{x:Bind Model.CapturePlaceholder, Mode=OneWay}"
                          Text="{x:Bind Model.CaptureText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
+                         ToolTipService.ToolTip="{x:Bind Model.CaptureTip, Mode=OneWay}" />
+                <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="{ThemeResource FaintTextBrush}"
+                          HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"
+                          IsHitTestVisible="False" Visibility="{x:Bind local:Row.When(Model.ReadOnly), Mode=OneWay}" />
                 <Button Style="{StaticResource Bare}" Width="22" Height="22"
                         HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
                         Click="ClearDraft_Click"
@@ -90,7 +93,9 @@
                           ItemsSource="{x:Bind Model.VisibleTasks, Mode=OneWay}"
                           SelectedIndex="{x:Bind Model.SelectedIndex, Mode=TwoWay}"
                           SelectionMode="Single" IsItemClickEnabled="True" ItemClick="List_ItemClick"
-                          CanDragItems="True" CanReorderItems="True" AllowDrop="True"
+                          CanDragItems="{x:Bind Model.Editable, Mode=OneWay}"
+                          CanReorderItems="{x:Bind Model.Editable, Mode=OneWay}"
+                          AllowDrop="{x:Bind Model.Editable, Mode=OneWay}"
                           ItemContainerStyle="{StaticResource PlainRow}"
                           Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                     <ListView.ItemContainerTransitions>
@@ -110,7 +115,8 @@
                             </Grid.ColumnDefinitions>
 
                             <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
-                                    Click="Check_Click" Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
+                                    Click="Check_Click" Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}"
+                                    IsEnabled="{x:Bind local:Row.Editable(IsDone), Mode=OneWay}">
                                 <Grid>
                                     <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
                                     <Ellipse Width="17" Height="17" Fill="{ThemeResource AccentFillColorDefaultBrush}"
@@ -148,10 +154,12 @@
                                         Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
                                 <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource FaintTextBrush}" Margin="0,0,4,0"
                                           Visibility="{x:Bind local:Row.When(HasDetails), Mode=OneWay}" />
-                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" MinWidth="26" Click="Effort_Click">
+                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" MinWidth="26" Click="Effort_Click"
+                                        IsEnabled="{x:Bind local:Row.Editable(IsDone), Mode=OneWay}">
                                     <local:EffortChip Effort="{x:Bind Effort, Mode=OneWay}" />
                                 </Button>
-                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Priority_Click">
+                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Priority_Click"
+                                        IsEnabled="{x:Bind local:Row.Editable(IsDone), Mode=OneWay}">
                                     <local:PriorityBadge Priority="{x:Bind Priority, Mode=OneWay}" />
                                 </Button>
                             </StackPanel>

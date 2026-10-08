@@ -36,7 +36,11 @@ public static class Row
 
     public static string CountText(int count) => count.ToString();
 
-public static Visibility When(bool visible) =>
+    public static bool AllowEdits { get; set; } = true;
+
+    public static bool Editable(bool _) => AllowEdits;
+
+    public static Visibility When(bool visible) =>
         visible ? Visibility.Visible : Visibility.Collapsed;
 
     public static Visibility Unless(bool hidden) =>

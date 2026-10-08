@@ -52,6 +52,7 @@ public sealed partial class MainWindow : Window
     public MainWindow(AppModel model)
     {
         Model = model;
+        Row.AllowEdits = model.Editable;
         InitializeComponent();
         var settings = new SettingsPanel(model);
         SettingsHost.Children.Add(settings);

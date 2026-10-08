@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,6 +15,7 @@ public enum WidgetBanner
 {
     None,
     NewerVersion,
+    NewerFile,
     SignedOut,
     Recovered,
     StartedEmpty,
@@ -24,6 +26,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(300);
     public static readonly TimeSpan StrikeHold = TimeSpan.FromMilliseconds(1500);
     public static readonly TimeSpan DoneWindow = TimeSpan.FromDays(90);
+    public static readonly TimeSpan DeletedWindow = TimeSpan.FromDays(30);
+    public const int SchemaVersion = 1;
     public static readonly TimeSpan UndoStay = TimeSpan.FromMilliseconds(5000);
     public const string RunValueName = "Task Widget";
     public const string DefaultRunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -33,7 +37,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     readonly SynchronizationContext? ui;
     readonly HttpMessageHandler? http;
     readonly CancellationTokenSource checking = new();
+    readonly string folder;
     readonly string tasksPath;
+    readonly string archivePath;
     readonly string settingsPath;
     readonly string tokenPath;
     readonly string runKeyPath;
@@ -74,6 +80,11 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     string installerUrl = "";
     DateTimeOffset? lastUpdateCheck;
     bool checkAutomatically = true;
+    bool recovered;
+    bool startedEmpty;
+    string recoveredAt = "";
+    bool readOnly;
+    bool tasksNeedSave;
 
     public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
         : this(dataFolder, clock, null, null, null, runKeyPath)
@@ -97,7 +108,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (http is not null)
             httpClient = new HttpClient(http, disposeHandler: false);
         Directory.CreateDirectory(dataFolder);
+        folder = dataFolder;
         tasksPath = Path.Combine(dataFolder, "tasks.json");
+        archivePath = Path.Combine(dataFolder, "archive.jsonl");
         settingsPath = Path.Combine(dataFolder, "settings.json");
         tokenPath = Path.Combine(dataFolder, TokenFileName);
         Tasks.CollectionChanged += (_, _) =>
@@ -139,17 +152,82 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     }
 
     // Newer version outranks signed out, which outranks recovered and started empty.
-    public WidgetBanner Banner => updateReady ? WidgetBanner.NewerVersion : WidgetBanner.None;
+    public WidgetBanner Banner
+    {
+        get
+        {
+            if (updateReady)
+                return WidgetBanner.NewerVersion;
+            if (readOnly)
+                return WidgetBanner.NewerFile;
+            if (SignedOut)
+                return WidgetBanner.SignedOut;
+            if (recovered)
+                return WidgetBanner.Recovered;
+            if (startedEmpty)
+                return WidgetBanner.StartedEmpty;
+            return WidgetBanner.None;
+        }
+    }
 
     public bool HasBanner => Banner != WidgetBanner.None;
 
-    public string BannerMessage => Banner == WidgetBanner.NewerVersion
-        ? "Version " + newVersion + " is available"
+    public string BannerMessage => Banner switch
+    {
+        WidgetBanner.NewerVersion => "Version " + newVersion + " is available",
+        WidgetBanner.NewerFile => "These tasks were saved by a newer Task Widget. Update to make changes.",
+        WidgetBanner.SignedOut => "You're signed out of ChatGPT. New Captures wait until you sign in.",
+        WidgetBanner.Recovered => "Your task list was damaged and has been restored from a backup (saved " + recoveredAt + ").",
+        WidgetBanner.StartedEmpty => "Your task list couldn't be read, so Task Widget started fresh. The old file was kept.",
+        _ => "",
+    };
+
+    public string BannerPrimary => Banner switch
+    {
+        WidgetBanner.NewerVersion or WidgetBanner.NewerFile => "Get update",
+        WidgetBanner.SignedOut => "Sign in",
+        WidgetBanner.Recovered or WidgetBanner.StartedEmpty => "Open folder",
+        _ => "",
+    };
+
+    public bool BannerIsInfo => Banner is WidgetBanner.NewerVersion or WidgetBanner.NewerFile or WidgetBanner.Recovered;
+
+    public bool BannerIsWarning => Banner is WidgetBanner.SignedOut or WidgetBanner.StartedEmpty;
+
+    bool SignedOut => settingsFile.WelcomeRetired && !HasConnection;
+
+    public bool ReadOnly => readOnly;
+
+    public bool Editable => !readOnly;
+
+    public string CaptureLockTip => readOnly
+        ? "Saved by a newer Task Widget. Update to add Captures."
         : "";
 
-    public string BannerPrimary => Banner == WidgetBanner.NewerVersion ? "Get update" : "";
+    public string CaptureTip => readOnly
+        ? CaptureLockTip
+        : "Type or dictate. Enter adds it, Shift+Enter is a new line.";
 
-    public bool BannerIsInfo => Banner == WidgetBanner.NewerVersion;
+    public void OpenDataFolder()
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = folder,
+            UseShellExecute = true,
+        });
+    }
+
+    public bool BannerDismissible => Banner is WidgetBanner.Recovered or WidgetBanner.StartedEmpty;
+
+    public void DismissBanner()
+    {
+        if (!BannerDismissible)
+            return;
+
+        recovered = false;
+        startedEmpty = false;
+        RaiseBanner();
+    }
 
     public bool CanCheck => phase is UpdatePhase.Idle or UpdatePhase.Current or UpdatePhase.Failed;
 
@@ -178,6 +256,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
 public void Move(TaskRow task, int index)
     {
+        if (ReadOnly)
+            return;
+
         var from = Tasks.IndexOf(task);
         if (from < 0 || index < 0 || index >= Tasks.Count || index == from)
             return;
@@ -205,6 +286,9 @@ public void Move(TaskRow task, int index)
 
     public void Resort()
     {
+        if (ReadOnly)
+            return;
+
         var before = Tasks.ToList();
         var wasManual = HasManualPositions;
         var pending = before.Where(task => task.IsPending).ToList();
@@ -295,6 +379,9 @@ public void Move(TaskRow task, int index)
 
     public void BeginTitleEdit(TaskRow task)
     {
+        if (ReadOnly)
+            return;
+
         if (Tasks.Contains(task) || finished.Contains(task))
             task.IsEditing = true;
     }
@@ -303,6 +390,9 @@ public void Move(TaskRow task, int index)
 
     public void EditTitle(TaskRow task, string title)
     {
+        if (ReadOnly)
+            return;
+
         task.IsEditing = false;
         if (!Tasks.Contains(task) && !finished.Contains(task))
             return;
@@ -318,6 +408,9 @@ public void Move(TaskRow task, int index)
 
     public void CyclePriority(TaskRow task)
     {
+        if (ReadOnly)
+            return;
+
         if (!Tasks.Contains(task) && !finished.Contains(task))
             return;
 
@@ -342,6 +435,9 @@ public void Move(TaskRow task, int index)
 
     public void CycleEffort(TaskRow task)
     {
+        if (ReadOnly)
+            return;
+
         if (!Tasks.Contains(task) && !finished.Contains(task))
             return;
 
@@ -366,6 +462,9 @@ public void Move(TaskRow task, int index)
 
     public void EditDetails(TaskRow task, string details)
     {
+        if (ReadOnly)
+            return;
+
         if (!Tasks.Contains(task) && !finished.Contains(task))
             return;
 
@@ -426,6 +525,9 @@ public void Move(TaskRow task, int index)
 
     public void DeleteSelected()
     {
+        if (ReadOnly)
+            return;
+
         if (Selected() is not TaskRow task)
             return;
 
@@ -490,6 +592,9 @@ public void Move(TaskRow task, int index)
 
     public void Delete(TaskRow task)
     {
+        if (ReadOnly)
+            return;
+
         CancelStrike(task);
         var openIndex = Tasks.IndexOf(task);
         var wasDone = finished.Contains(task);
@@ -847,6 +952,9 @@ public void Move(TaskRow task, int index)
 
     public async Task CommitCapture()
     {
+        if (ReadOnly)
+            return;
+
         var text = CaptureText.Replace("\r\n", "\n").Trim();
         if (text.Length == 0)
             return;
@@ -880,6 +988,9 @@ public void Move(TaskRow task, int index)
 
     public void Tick(TaskRow task)
     {
+        if (ReadOnly)
+            return;
+
         if (task.IsStriking)
         {
             CancelStrike(task);
@@ -1021,6 +1132,9 @@ public void MoveTo(int from, int to)
 
     public void AcceptReorder(int from, int to)
     {
+        if (ReadOnly)
+            return;
+
         if (from == to || to < 0 || to >= Tasks.Count)
             return;
 
@@ -1068,7 +1182,11 @@ public void MoveTo(int from, int to)
 
     partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
 
-    partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
+    partial void OnHasConnectionChanged(bool value)
+    {
+        RaiseWelcome();
+        RaiseBanner();
+    }
 
     partial void OnDockedChanged(bool value)
     {
@@ -1113,11 +1231,11 @@ public void MoveTo(int from, int to)
         if (loading || Volatile.Read(ref disposed) != 0)
             return;
 
-        var tasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
         var settings = JsonSerializer.Serialize(SnapshotSettings(), WidgetJsonContext.Default.SettingsFile);
         lock (gate)
         {
-            pendingTasks = tasks;
+            if (!readOnly)
+                pendingTasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
             pendingSettings = settings;
             dirty = 1;
         }
@@ -1128,7 +1246,7 @@ public void MoveTo(int from, int to)
 
     TaskFile SnapshotTasks() => new()
     {
-        SchemaVersion = 1,
+        SchemaVersion = AppModel.SchemaVersion,
         Draft = CaptureText,
 Manual = HasManualPositions,
         ManualPositions = HasManualPositions,
@@ -1201,14 +1319,163 @@ Manual = HasManualPositions,
         {
             loading = false;
         }
+
+        if (tasksNeedSave)
+            Flush();
     }
 
     void LoadTasks()
     {
-        var file = JsonSerializer.Deserialize(File.ReadAllText(tasksPath), WidgetJsonContext.Default.TaskFile);
+        if (!TryReadTasks(tasksPath, out var raw, out var file))
+        {
+            QuarantineTasks();
+            var bak = tasksPath + ".bak";
+            if (!File.Exists(bak) || !TryReadTasks(bak, out raw, out file))
+            {
+                startedEmpty = true;
+                return;
+            }
+
+            recovered = true;
+            recoveredAt = File.GetLastWriteTime(bak).ToString("HH:mm", CultureInfo.InvariantCulture);
+            File.Copy(bak, tasksPath, overwrite: true);
+        }
+
         if (file is null)
             return;
 
+        if (file.SchemaVersion > SchemaVersion)
+        {
+            readOnly = true;
+            AdoptTasks(file);
+            return;
+        }
+
+        if (file.SchemaVersion < SchemaVersion)
+        {
+            var versionBak = Path.Combine(folder, "tasks.v" + file.SchemaVersion + ".bak");
+            if (!File.Exists(versionBak))
+                File.WriteAllText(versionBak, raw);
+            tasksNeedSave = true;
+        }
+
+        AdoptTasks(file);
+        if (ApplyRetention())
+            tasksNeedSave = true;
+    }
+
+    bool ApplyRetention()
+    {
+        if (readOnly)
+            return false;
+
+        var changed = false;
+        var doneCutoff = clock.UtcNow - DoneWindow;
+        foreach (var task in finished.Where(task => task.CompletedAt is DateTimeOffset at && at < doneCutoff).ToList())
+        {
+            finished.Remove(task);
+            AppendArchive(ArchiveTask(task));
+            changed = true;
+        }
+
+        var deleteCutoff = clock.UtcNow - DeletedWindow;
+        foreach (var task in deleted.Where(task => task.DeletedAt is DateTimeOffset at && at <= deleteCutoff).ToList())
+        {
+            deleted.Remove(task);
+            changed = true;
+        }
+
+        var live = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var task in Tasks.Concat(finished).Concat(deleted))
+        {
+            if (task.Capture.Length > 0)
+                live.Add(task.Capture);
+        }
+
+        foreach (var capture in captures.Where(capture => capture.State == "interpreted" && !live.Contains(capture.Id)).ToList())
+        {
+            captures.Remove(capture);
+            AppendArchive(ArchiveCapture(capture));
+            changed = true;
+        }
+
+        if (changed)
+            ShowDoneWindow();
+        return changed;
+    }
+
+    void AppendArchive(string line) => File.AppendAllText(archivePath, line + "\n");
+
+    static string ArchiveTask(TaskRow task)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("kind", "task");
+            writer.WriteString("title", task.Title);
+            writer.WriteString("details", task.Details);
+            writer.WriteString("capture", task.Capture);
+            if (task.CompletedAt is DateTimeOffset completed)
+                writer.WriteString("completedAt", completed);
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    static string ArchiveCapture(CaptureRecord capture)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("kind", "capture");
+            writer.WriteString("id", capture.Id);
+            writer.WriteString("text", capture.Text);
+            writer.WriteString("state", capture.State);
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    bool TryReadTasks(string path, out string raw, out TaskFile? file)
+    {
+        raw = "";
+        file = null;
+        try
+        {
+            raw = File.ReadAllText(path);
+            file = JsonSerializer.Deserialize(raw, WidgetJsonContext.Default.TaskFile);
+            return file is not null;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    void QuarantineTasks()
+    {
+        var stamp = clock.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var dest = Path.Combine(folder, "tasks.corrupt-" + stamp + ".json");
+        var n = 0;
+        while (File.Exists(dest))
+        {
+            n++;
+            dest = Path.Combine(folder, "tasks.corrupt-" + stamp + "-" + n + ".json");
+        }
+
+        File.Move(tasksPath, dest);
+    }
+
+    void AdoptTasks(TaskFile file)
+    {
         foreach (var record in file.Tasks ?? [])
         {
             var task = new TaskRow(
@@ -1688,12 +1955,19 @@ Manual = HasManualPositions,
         OnPropertyChanged(nameof(CheckedWhen));
         OnPropertyChanged(nameof(AboutStatus));
         OnPropertyChanged(nameof(Attention));
+        RaiseBanner();
+        OnPropertyChanged(nameof(CanCheck));
+    }
+
+    void RaiseBanner()
+    {
         OnPropertyChanged(nameof(Banner));
         OnPropertyChanged(nameof(HasBanner));
         OnPropertyChanged(nameof(BannerMessage));
         OnPropertyChanged(nameof(BannerPrimary));
         OnPropertyChanged(nameof(BannerIsInfo));
-        OnPropertyChanged(nameof(CanCheck));
+        OnPropertyChanged(nameof(BannerIsWarning));
+        OnPropertyChanged(nameof(BannerDismissible));
     }
 
     enum UpdatePhase
