@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
     long animStart;
     bool rendering;
     bool placed;
+    int dragFrom = -1;
     bool driving;
     bool slide;
     RectInt32 fromRect;
@@ -65,6 +66,9 @@ public sealed partial class MainWindow : Window
         }
 
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
+        List.PreviewKeyDown += List_PreviewKeyDown;
+        List.DragItemsStarting += List_DragItemsStarting;
+        List.DragItemsCompleted += List_DragItemsCompleted;
         Host.SizeChanged += (_, _) => OnHostSize();
         Model.PropertyChanged += OnModelPropertyChanged;
         appearance = new SystemAppearance(Model, () =>
@@ -83,6 +87,46 @@ public sealed partial class MainWindow : Window
     }
 
     public AppModel Model { get; }
+
+    void Resort_Click(object sender, RoutedEventArgs e) => Model.ReSort();
+
+    void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(CoreVirtualKeyStates.Down);
+        if (!ctrl || List.SelectedIndex < 0)
+            return;
+
+        if (e.Key == VirtualKey.Up)
+            Model.MoveTo(List.SelectedIndex, List.SelectedIndex - 1);
+        else if (e.Key == VirtualKey.Down)
+            Model.MoveTo(List.SelectedIndex, List.SelectedIndex + 1);
+        else
+            return;
+
+        e.Handled = true;
+    }
+
+    void List_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
+    {
+        dragFrom = e.Items.Count == 1 && e.Items[0] is TaskRow row ? Model.Tasks.IndexOf(row) : -1;
+        if (dragFrom < 0)
+            e.Cancel = true;
+    }
+
+    void List_DragItemsCompleted(object sender, DragItemsCompletedEventArgs e)
+    {
+        if (dragFrom < 0 || e.Items.Count != 1 || e.Items[0] is not TaskRow row)
+        {
+            dragFrom = -1;
+            return;
+        }
+
+        var to = Model.Tasks.IndexOf(row);
+        var from = dragFrom;
+        dragFrom = -1;
+        Model.AcceptReorder(from, to);
+    }
 
     void Collapse_Click(object sender, RoutedEventArgs e)
     {

@@ -11,6 +11,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Padding="16,10,8,4" ColumnSpacing="2">
@@ -32,8 +34,9 @@
                     </Button>
                     <TextBlock Text="Settings" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
-                <Button Grid.Column="1" Style="{StaticResource Bare}" Width="30" Height="30" Visibility="Collapsed"
-                        ToolTipService.ToolTip="Re-sort by Priority and Effort">
+                <Button Grid.Column="1" Style="{StaticResource Bare}" Width="30" Height="30" Click="Resort_Click"
+                        ToolTipService.ToolTip="Re-sort by Priority and Effort"
+                        Visibility="{x:Bind local:Row.When(Model.HasManualPositions), Mode=OneWay}">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
                 </Button>
                 <Button Grid.Column="2" Style="{StaticResource Bare}" Width="30" Height="30"
@@ -58,9 +61,15 @@
                          ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
             </Grid>
 
-            <ListView x:Name="List" Grid.Row="2" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
+            <local:Welcome Grid.Row="2" Card="True" local:Fx.Enter="True"
+                           Model="{x:Bind Model}"
+                           Visibility="{x:Bind local:F.Both(Model.ShowWelcome, Model.ShowingTasks), Mode=OneWay}" />
+
+            <ListView x:Name="List" Grid.Row="3" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
                       ItemsSource="{x:Bind Model.Tasks, Mode=OneWay}"
                       ItemContainerStyle="{StaticResource PlainRow}"
+                      SelectionMode="Single"
+                      CanDragItems="True" CanReorderItems="True" AllowDrop="True"
                       Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
@@ -95,7 +104,11 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <Grid x:Name="SettingsHost" Grid.Row="3" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
+            <local:Welcome Grid.Row="4" Card="False"
+                           Model="{x:Bind Model}"
+                           Visibility="{x:Bind local:F.Both(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
+
+            <Grid x:Name="SettingsHost" Grid.Row="5" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"

@@ -2,6 +2,8 @@ namespace TaskWidget.Core;
 
 public interface IClock
 {
-    void Schedule(TimeSpan delay, Action callback);
-    void Cancel();
+    DateTimeOffset Now { get; }
+    DateTimeOffset UtcNow { get; }
+    long Schedule(TimeSpan delay, Action callback);
+    void Cancel(long id);
 }

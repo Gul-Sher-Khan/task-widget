@@ -40,4 +40,7 @@ public static class Row
 
     public static Visibility When(bool shown) =>
         shown ? Visibility.Visible : Visibility.Collapsed;
+
+    // Prototype Prefs.ListMaxHeight: a one-line row is ~37 DIP.
+    public static double ListMaxHeight(int rows) => rows * 37 + 4;
 }

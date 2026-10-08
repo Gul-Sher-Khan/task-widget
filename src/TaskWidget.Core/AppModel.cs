@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Win32;
@@ -13,14 +15,23 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(300);
     public const string RunValueName = "Task Widget";
     public const string DefaultRunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    public const string TokenFileName = "tokens.bin";
 
     readonly IClock clock;
     readonly string tasksPath;
     readonly string settingsPath;
+    readonly string tokenPath;
     readonly string runKeyPath;
+    readonly HttpClient? httpClient;
+    readonly IBrowserLauncher? browser;
+    readonly IDataProtector? protector;
     readonly object gate = new();
+    SettingsFile settingsFile = new() { SchemaVersion = 1 };
+    readonly Dictionary<TaskRow, DateTimeOffset> created = [];
+    readonly Dictionary<TaskRow, int> spoken = [];
     string? pendingTasks;
     string? pendingSettings;
+    long saveTimer;
     int dirty;
     int disposed;
     bool loading;
@@ -32,18 +43,35 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     bool backdropAvailable = true;
 
     public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
+        : this(dataFolder, clock, null, null, null, runKeyPath)
+    {
+    }
+
+    public AppModel(
+        string dataFolder,
+        IClock clock,
+        HttpMessageHandler? http,
+        IBrowserLauncher? browser,
+        IDataProtector? protector,
+        string? runKeyPath = null)
     {
         this.clock = clock;
+        this.browser = browser;
+        this.protector = protector;
         this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
+        if (http is not null)
+            httpClient = new HttpClient(http, disposeHandler: false);
         Directory.CreateDirectory(dataFolder);
         tasksPath = Path.Combine(dataFolder, "tasks.json");
         settingsPath = Path.Combine(dataFolder, "settings.json");
+        tokenPath = Path.Combine(dataFolder, TokenFileName);
         Tasks.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(OpenTaskCount));
             OnPropertyChanged(nameof(OpenHighCount));
             OnPropertyChanged(nameof(OpenMediumCount));
             OnPropertyChanged(nameof(OpenLowCount));
+            OnPropertyChanged(nameof(ShowEmptyHotkey));
         };
         Load();
         startWithWindows = RunValueExists();
@@ -67,6 +95,37 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public int OpenMediumCount => Tasks.Count(task => task.Priority == Priority.Medium);
 
     public int OpenLowCount => Tasks.Count(task => task.Priority == Priority.Low);
+
+    public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
+
+    public bool ShowEmptyHotkey => !ShowWelcome && Tasks.Count == 0;
+
+    [ObservableProperty]
+    public partial bool HasConnection { get; private set; }
+
+    [ObservableProperty]
+    public partial SignInPhase SignInState { get; private set; }
+
+    [ObservableProperty]
+    public partial string SignInStatus { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial string SignInCause { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial string Hotkey { get; private set; } = "Ctrl + Shift";
+
+    public bool SignInIdle => SignInState == SignInPhase.Idle;
+
+    public bool SignInWaiting => SignInState == SignInPhase.Waiting;
+
+    public bool SignInFailed => SignInState == SignInPhase.Failed;
+
+    public bool SignInNotEligible => SignInState == SignInPhase.NotEligible;
+
+    public bool SignInButton => SignInState is SignInPhase.Idle or SignInPhase.NotEligible;
+
+    public event Action? BringToFront;
 
     public int RowsBeforeScrolling
     {
@@ -216,6 +275,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ShowBackdropNote));
     }
 
+    [ObservableProperty]
+    public partial bool HasManualPositions { get; private set; }
+
     public void UpdateDraft(string text) => CaptureText = text;
 
     public void Dock()
@@ -242,8 +304,42 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (title.Length == 0)
             return;
 
-        Tasks.Add(new TaskRow(title, Priority.Medium, Effort.Short, ""));
+        Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
+    }
+
+    public void MoveTo(int from, int to)
+    {
+        if (from == to || from < 0 || to < 0 || from >= Tasks.Count || to >= Tasks.Count)
+            return;
+
+        Tasks.Move(from, to);
+        HasManualPositions = true;
+        MarkDirty();
+    }
+
+    // The list already moved the row (a drag). Record that, without moving it again.
+    public void AcceptReorder(int from, int to)
+    {
+        if (from == to || to < 0)
+            return;
+
+        HasManualPositions = true;
+        MarkDirty();
+    }
+
+    public void ReSort()
+    {
+        var sorted = Tasks.OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var current = Tasks.IndexOf(sorted[i]);
+            if (current != i)
+                Tasks.Move(current, i);
+        }
+
+        HasManualPositions = false;
+        MarkDirty();
     }
 
     public void Dispose()
@@ -251,13 +347,35 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (Interlocked.Exchange(ref disposed, 1) != 0)
             return;
 
-        clock.Cancel();
+        CancelSignIn();
+        clock.Cancel(saveTimer);
+        clock.Cancel(signInTimer);
         WriteIfDirty();
+        httpClient?.Dispose();
     }
 
     partial void OnCaptureTextChanged(string value) => MarkDirty();
 
+    partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
+
+    partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
+
     partial void OnDockedChanged(bool value) => MarkDirty();
+
+    void RaiseSignInBindings()
+    {
+        OnPropertyChanged(nameof(SignInIdle));
+        OnPropertyChanged(nameof(SignInWaiting));
+        OnPropertyChanged(nameof(SignInFailed));
+        OnPropertyChanged(nameof(SignInNotEligible));
+        OnPropertyChanged(nameof(SignInButton));
+    }
+
+    void RaiseWelcome()
+    {
+        OnPropertyChanged(nameof(ShowWelcome));
+        OnPropertyChanged(nameof(ShowEmptyHotkey));
+    }
 
     void MarkDirty()
     {
@@ -273,21 +391,36 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             dirty = 1;
         }
 
-        clock.Cancel();
-        clock.Schedule(SaveDelay, WriteIfDirty);
+        clock.Cancel(saveTimer);
+        saveTimer = clock.Schedule(SaveDelay, WriteIfDirty);
     }
 
     TaskFile SnapshotTasks() => new()
     {
         SchemaVersion = 1,
         Draft = CaptureText,
+        Manual = HasManualPositions,
         Tasks = Tasks.Select(task => new TaskRecord
         {
             Title = task.Title,
             Details = task.Details,
             Priority = PriorityName(task.Priority),
             Effort = EffortName(task.Effort),
+            Created = CreatedOf(task),
+            Spoken = SpokenOf(task),
         }).ToList(),
+    };
+
+    SettingsFile SnapshotSettings() => new()
+    {
+        SchemaVersion = 1,
+        Docked = Docked,
+        RowsBeforeScrolling = rowsBeforeScrolling,
+        WelcomeRetired = settingsFile.WelcomeRetired,
+        ExtAgentHostId = settingsFile.ExtAgentHostId,
+        IssuedClientId = settingsFile.IssuedClientId,
+        Theme = ThemeName(theme),
+        Backdrop = BackdropName(backdrop),
     };
 
     static string PriorityName(Priority priority) => priority switch
@@ -298,15 +431,6 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(priority)),
     };
 
-    SettingsFile SnapshotSettings() => new()
-    {
-        SchemaVersion = 1,
-        Docked = Docked,
-        RowsBeforeScrolling = rowsBeforeScrolling,
-        Theme = ThemeName(theme),
-        Backdrop = BackdropName(backdrop),
-    };
-
     void Load()
     {
         loading = true;
@@ -315,6 +439,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             if (File.Exists(tasksPath))
                 LoadTasks();
             LoadSettings();
+            LoadConnection();
         }
         finally
         {
@@ -330,14 +455,54 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
         foreach (var record in file.Tasks ?? [])
         {
-            Tasks.Add(new TaskRow(
+            var row = new TaskRow(
                 record.Title,
                 ParsePriority(record.Priority),
                 ParseEffort(record.Effort),
-                record.Details));
+                record.Details);
+            created[row] = record.Created;
+            spoken[row] = record.Spoken;
+            Tasks.Add(row);
         }
 
+        HasManualPositions = file.Manual;
         CaptureText = file.Draft;
+    }
+
+    // New, edited and un-completed Tasks all land here.
+    void Place(TaskRow task, DateTimeOffset at, int spokenIndex)
+    {
+        created[task] = at;
+        spoken[task] = spokenIndex;
+        Tasks.Insert(IndexFor(task), task);
+    }
+
+    int IndexFor(TaskRow task)
+    {
+        for (var i = 0; i < Tasks.Count; i++)
+        {
+            if (CompareRank(task, Tasks[i]) < 0)
+                return i;
+        }
+
+        return Tasks.Count;
+    }
+
+    int CompareRank(TaskRow a, TaskRow b)
+    {
+        var byPriority = a.Priority.CompareTo(b.Priority);
+        if (byPriority != 0)
+            return byPriority;
+
+        var byEffort = a.Effort.CompareTo(b.Effort);
+        if (byEffort != 0)
+            return byEffort;
+
+        var byAge = CreatedOf(a).CompareTo(CreatedOf(b));
+        if (byAge != 0)
+            return byAge;
+
+        return SpokenOf(a).CompareTo(SpokenOf(b));
     }
 
     void LoadSettings()
@@ -354,14 +519,44 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         {
             return;
         }
+        catch (IOException)
+        {
+            return;
+        }
 
         if (file is null)
             return;
 
+        settingsFile = file;
         Docked = file.Docked;
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
         theme = ParseTheme(file.Theme);
         backdrop = ParseBackdrop(file.Backdrop);
+    }
+
+    void LoadConnection()
+    {
+        if (protector is null || !File.Exists(tokenPath))
+            return;
+
+        try
+        {
+            var plain = protector.Unprotect(File.ReadAllBytes(tokenPath));
+            var file = JsonSerializer.Deserialize(plain, WidgetJsonContext.Default.TokenFile);
+            HasConnection = file is not null && file.AccessToken.Length > 0;
+        }
+        catch (JsonException)
+        {
+            HasConnection = false;
+        }
+        catch (IOException)
+        {
+            HasConnection = false;
+        }
+        catch (CryptographicException)
+        {
+            HasConnection = false;
+        }
     }
 
     static int ClampRows(int value) => Math.Clamp(value, 4, 15);
@@ -427,6 +622,10 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         _ => throw new InvalidDataException($"Unknown effort \"{value}\"."),
     };
 
+    DateTimeOffset CreatedOf(TaskRow task) => created.TryGetValue(task, out var at) ? at : default;
+
+    int SpokenOf(TaskRow task) => spoken.TryGetValue(task, out var index) ? index : 0;
+
     static string EffortName(Effort effort) => effort switch
     {
         Effort.Quick => "quick",
@@ -454,12 +653,14 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             SwapIn(settingsPath, settings);
     }
 
-    static void SwapIn(string path, string contents)
+    static void SwapIn(string path, string contents) => SwapIn(path, Encoding.UTF8.GetBytes(contents));
+
+    static void SwapIn(string path, byte[] contents)
     {
         var tmp = path + ".tmp";
-        File.WriteAllText(tmp, contents);
+        File.WriteAllBytes(tmp, contents);
         if (!File.Exists(path))
-            File.WriteAllText(path, "");
+            File.WriteAllBytes(path, []);
         File.Replace(tmp, path, path + ".bak", ignoreMetadataErrors: true);
     }
 }
