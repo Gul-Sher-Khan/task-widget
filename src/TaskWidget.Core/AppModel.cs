@@ -26,6 +26,10 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     bool loading;
     int rowsBeforeScrolling = 8;
     bool startWithWindows;
+    ThemeChoice theme = ThemeChoice.System;
+    BackdropChoice backdrop = BackdropChoice.Mica;
+    bool systemDark;
+    bool backdropAvailable = true;
 
     public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
     {
@@ -125,6 +129,93 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
     }
 
+    public ThemeChoice Theme
+    {
+        get => theme;
+        set
+        {
+            if (theme == value)
+                return;
+
+            bool appearedDark = AppearsDark;
+            theme = value;
+            OnPropertyChanged(nameof(Theme));
+            OnPropertyChanged(nameof(ThemeIndex));
+            if (appearedDark != AppearsDark)
+                OnPropertyChanged(nameof(AppearsDark));
+            MarkDirty();
+        }
+    }
+
+    public int ThemeIndex
+    {
+        get => (int)theme;
+        set
+        {
+            if (value is < 0 or > 2)
+                return;
+            Theme = (ThemeChoice)value;
+        }
+    }
+
+    public BackdropChoice Backdrop
+    {
+        get => backdrop;
+        set
+        {
+            if (backdrop == value)
+                return;
+
+            var effective = EffectiveBackdrop;
+            backdrop = value;
+            OnPropertyChanged(nameof(Backdrop));
+            OnPropertyChanged(nameof(BackdropIndex));
+            if (effective != EffectiveBackdrop)
+                OnPropertyChanged(nameof(EffectiveBackdrop));
+            MarkDirty();
+        }
+    }
+
+    public int BackdropIndex
+    {
+        get => (int)backdrop;
+        set
+        {
+            if (value is < 0 or > 3)
+                return;
+            Backdrop = (BackdropChoice)value;
+        }
+    }
+
+    public bool AppearsDark => theme switch
+    {
+        ThemeChoice.Dark => true,
+        ThemeChoice.Light => false,
+        _ => systemDark,
+    };
+
+    public BackdropChoice EffectiveBackdrop => backdropAvailable ? backdrop : BackdropChoice.Solid;
+
+    public bool ShowBackdropNote => !backdropAvailable;
+
+    public void ReportSystemAppearance(bool dark, bool backdropAvailable)
+    {
+        bool appearedDark = AppearsDark;
+        bool showedNote = ShowBackdropNote;
+        var effective = EffectiveBackdrop;
+        if (systemDark == dark && this.backdropAvailable == backdropAvailable)
+            return;
+
+        systemDark = dark;
+        this.backdropAvailable = backdropAvailable;
+        if (appearedDark != AppearsDark)
+            OnPropertyChanged(nameof(AppearsDark));
+        if (effective != EffectiveBackdrop)
+            OnPropertyChanged(nameof(EffectiveBackdrop));
+        if (showedNote != ShowBackdropNote)
+            OnPropertyChanged(nameof(ShowBackdropNote));
+    }
+
     public void UpdateDraft(string text) => CaptureText = text;
 
     public void Dock()
@@ -212,6 +303,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         SchemaVersion = 1,
         Docked = Docked,
         RowsBeforeScrolling = rowsBeforeScrolling,
+        Theme = ThemeName(theme),
+        Backdrop = BackdropName(backdrop),
     };
 
     void Load()
@@ -267,6 +360,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
         Docked = file.Docked;
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
+        theme = ParseTheme(file.Theme);
+        backdrop = ParseBackdrop(file.Backdrop);
     }
 
     static int ClampRows(int value) => Math.Clamp(value, 4, 15);
@@ -285,6 +380,36 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         else
             key.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
+
+    static ThemeChoice ParseTheme(string? value) => value switch
+    {
+        "light" => ThemeChoice.Light,
+        "dark" => ThemeChoice.Dark,
+        _ => ThemeChoice.System,
+    };
+
+    static BackdropChoice ParseBackdrop(string? value) => value switch
+    {
+        "micaAlt" => BackdropChoice.MicaAlt,
+        "acrylic" => BackdropChoice.Acrylic,
+        "solid" => BackdropChoice.Solid,
+        _ => BackdropChoice.Mica,
+    };
+
+    static string ThemeName(ThemeChoice value) => value switch
+    {
+        ThemeChoice.Light => "light",
+        ThemeChoice.Dark => "dark",
+        _ => "system",
+    };
+
+    static string BackdropName(BackdropChoice value) => value switch
+    {
+        BackdropChoice.MicaAlt => "micaAlt",
+        BackdropChoice.Acrylic => "acrylic",
+        BackdropChoice.Solid => "solid",
+        _ => "mica",
+    };
 
     static Priority ParsePriority(string value) => value switch
     {

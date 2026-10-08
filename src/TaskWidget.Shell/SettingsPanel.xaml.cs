@@ -18,6 +18,26 @@ public sealed partial class SettingsPanel : UserControl
 
     public AppModel Model { get; }
 
+    public string[] Themes { get; } = ["System", "Light", "Dark"];
+
+    public string[] Backdrops { get; } = ["Mica", "Mica Alt", "Acrylic", "Solid"];
+
+    void Theme_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ready || ThemeBox.SelectedIndex < 0)
+            return;
+
+        Model.ThemeIndex = ThemeBox.SelectedIndex;
+    }
+
+    void Backdrop_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ready || BackdropBox.SelectedIndex < 0)
+            return;
+
+        Model.BackdropIndex = BackdropBox.SelectedIndex;
+    }
+
     void Rows_Changed(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (!ready)

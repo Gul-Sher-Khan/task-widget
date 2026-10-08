@@ -27,7 +27,19 @@
     <ScrollViewer x:Name="Scroller" MaxHeight="520" Padding="12,0,12,4" VerticalScrollBarVisibility="Auto">
         <StackPanel Padding="0,0,0,8">
 
-            <TextBlock Text="Widget" Style="{StaticResource Section}" Margin="4,4,0,6" />
+            <TextBlock Text="Appearance" Style="{StaticResource Section}" Margin="4,4,0,6" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <ComboBox x:Name="ThemeBox" Header="Theme" ItemsSource="{x:Bind Themes}" SelectedIndex="{x:Bind Model.ThemeIndex, Mode=OneWay}"
+                              HorizontalAlignment="Stretch" FontSize="13" SelectionChanged="Theme_Changed" />
+                    <ComboBox x:Name="BackdropBox" Header="Backdrop" ItemsSource="{x:Bind Backdrops}" SelectedIndex="{x:Bind Model.BackdropIndex, Mode=OneWay}"
+                              HorizontalAlignment="Stretch" FontSize="13" SelectionChanged="Backdrop_Changed" />
+                    <TextBlock Style="{StaticResource Caption}" Visibility="{x:Bind local:Row.When(Model.ShowBackdropNote), Mode=OneWay}"
+                               Text="Windows transparency effects are off, so every backdrop shows as Solid." />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Widget" Style="{StaticResource Section}" />
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="6">
                     <Grid>

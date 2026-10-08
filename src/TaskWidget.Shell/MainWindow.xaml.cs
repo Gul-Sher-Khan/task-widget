@@ -6,6 +6,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -25,7 +26,9 @@ public sealed partial class MainWindow : Window
     const double DockHeightDip = 44;
     const double DockTopDip = 8;
 
-    MicaController? mica;
+    SystemAppearance? appearance;
+    ISystemBackdropControllerWithTargets? backdropController;
+    SystemBackdropConfiguration? backdropConfig;
     double current;
     double from;
     double target;
@@ -64,11 +67,17 @@ public sealed partial class MainWindow : Window
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
         Host.SizeChanged += (_, _) => OnHostSize();
         Model.PropertyChanged += OnModelPropertyChanged;
+        appearance = new SystemAppearance(Model, () =>
+        {
+            if (placed)
+                ApplyLook();
+        });
         Closed += (_, _) =>
         {
             Model.PropertyChanged -= OnModelPropertyChanged;
             CompositionTarget.Rendering -= Tick;
-            mica?.Dispose();
+            appearance?.Dispose();
+            backdropController?.Dispose();
             Model.Dispose();
         };
     }
@@ -92,13 +101,26 @@ public sealed partial class MainWindow : Window
 
     void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AppModel.Docked) || !placed)
+        if (e.PropertyName == nameof(AppModel.Docked))
+        {
+            if (!placed)
+                return;
+            if (Model.Docked)
+                PlayToDock();
+            else
+                PlayToWidget();
+            return;
+        }
+
+        if (e.PropertyName is nameof(AppModel.Theme) or nameof(AppModel.Backdrop))
+            appearance?.Publish();
+
+        if (!placed)
             return;
 
-        if (Model.Docked)
-            PlayToDock();
-        else
-            PlayToWidget();
+        if (e.PropertyName is nameof(AppModel.Theme) or nameof(AppModel.Backdrop)
+            or nameof(AppModel.AppearsDark) or nameof(AppModel.EffectiveBackdrop))
+            ApplyLook();
     }
 
     void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
@@ -127,7 +149,7 @@ public sealed partial class MainWindow : Window
         if (!placed)
         {
             placed = true;
-            ApplyMica();
+            ApplyLook();
             if (Model.Docked)
             {
                 Root.Visibility = Visibility.Collapsed;
@@ -340,25 +362,55 @@ public sealed partial class MainWindow : Window
         (int)Math.Round(a.Width + (b.Width - a.Width) * t),
         (int)Math.Round(a.Height + (b.Height - a.Height) * t));
 
-    void ApplyMica()
+    void ApplyLook()
     {
-        var config = new SystemBackdropConfiguration
+        bool contrast = appearance?.ContrastTheme == true;
+        Host.RequestedTheme = contrast
+            ? ElementTheme.Default
+            : Model.Theme switch
+            {
+                ThemeChoice.Light => ElementTheme.Light,
+                ThemeChoice.Dark => ElementTheme.Dark,
+                _ => ElementTheme.Default,
+            };
+
+        backdropController?.RemoveAllSystemBackdropTargets();
+        backdropController?.Dispose();
+        backdropController = null;
+        backdropConfig = null;
+
+        var effective = contrast ? BackdropChoice.Solid : Model.EffectiveBackdrop;
+        if (effective == BackdropChoice.Solid)
         {
+            Host.ClearValue(Grid.BackgroundProperty);
+            return;
+        }
+
+        backdropConfig = new SystemBackdropConfiguration
+        {
+            // Kept true so Mica and Acrylic stay live when the window is inactive.
             IsInputActive = true,
-            Theme = Application.Current.RequestedTheme == ApplicationTheme.Dark
-                ? SystemBackdropTheme.Dark
-                : SystemBackdropTheme.Light,
+            Theme = Model.AppearsDark ? SystemBackdropTheme.Dark : SystemBackdropTheme.Light,
         };
+
         try
         {
-            mica = new MicaController { Kind = MicaKind.Base };
-            mica.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
-            mica.SetSystemBackdropConfiguration(config);
+            backdropController = effective switch
+            {
+                BackdropChoice.MicaAlt => new MicaController { Kind = MicaKind.BaseAlt },
+                BackdropChoice.Acrylic => new DesktopAcrylicController { Kind = DesktopAcrylicKind.Base },
+                _ => new MicaController { Kind = MicaKind.Base },
+            };
+            backdropController.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
+            backdropController.SetSystemBackdropConfiguration(backdropConfig);
             Host.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         }
         catch (COMException)
         {
-            mica = null;
+            backdropController?.Dispose();
+            backdropController = null;
+            backdropConfig = null;
+            Host.ClearValue(Grid.BackgroundProperty);
         }
     }
 }
