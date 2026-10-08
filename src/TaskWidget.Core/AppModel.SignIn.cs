@@ -84,11 +84,7 @@ public sealed partial class AppModel
         var timedOut = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         cancelWait = cancelled;
-        signInTimer = clock.Schedule(SignInTimeout, () =>
-        {
-            timedOut.TrySetResult();
-            listener.Stop();
-        });
+        signInTimer = clock.Schedule(SignInTimeout, () => timedOut.TrySetResult());
 
         var accept = listener.AcceptAsync(query => CallbackPage(query, state));
         try
@@ -105,18 +101,19 @@ public sealed partial class AppModel
         var finished = await Task.WhenAny(accept, timedOut.Task, cancelled.Task);
         clock.Cancel(signInTimer);
 
-        if (finished == cancelled.Task)
-        {
-            if (SignInState == SignInPhase.Waiting)
-                FailSignIn("You cancelled sign-in.");
-            return;
-        }
-
-        if (finished == timedOut.Task)
+        if (timedOut.Task.IsCompleted)
         {
             listener.Stop();
             if (SignInState == SignInPhase.Waiting)
                 FailSignIn("Timed out after 5 minutes.");
+            return;
+        }
+
+        if (finished == cancelled.Task || cancelled.Task.IsCompleted)
+        {
+            listener.Stop();
+            if (SignInState == SignInPhase.Waiting)
+                FailSignIn("You cancelled sign-in.");
             return;
         }
 
