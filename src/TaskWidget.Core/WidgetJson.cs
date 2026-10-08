@@ -32,6 +32,7 @@ sealed class SettingsFile
     public string Theme { get; set; } = "system";
     public string Backdrop { get; set; } = "mica";
     public bool WelcomeRetired { get; set; }
+    public string HomeMonitor { get; set; } = "";
     public string ExtAgentHostId { get; set; } = "";
     public string IssuedClientId { get; set; } = "";
 }

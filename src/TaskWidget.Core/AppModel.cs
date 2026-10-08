@@ -864,6 +864,7 @@ Manual = HasManualPositions,
         IssuedClientId = settingsFile.IssuedClientId,
         Theme = ThemeName(theme),
         Backdrop = BackdropName(backdrop),
+        HomeMonitor = settingsFile.HomeMonitor,
     };
 
     static string PriorityName(Priority priority) => priority switch
