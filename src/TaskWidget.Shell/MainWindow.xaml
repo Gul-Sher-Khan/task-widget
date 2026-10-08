@@ -10,6 +10,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Padding="16,10,8,4" ColumnSpacing="2">
@@ -51,7 +53,11 @@
                          ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
             </Grid>
 
-            <ListView x:Name="List" Grid.Row="2" Padding="6,0,6,0"
+            <local:Welcome Grid.Row="2" Card="True" local:Fx.Enter="True"
+                           Model="{x:Bind Model}"
+                           Visibility="{x:Bind Model.ShowWelcome, Mode=OneWay}" />
+
+            <ListView x:Name="List" Grid.Row="3" Padding="6,0,6,0"
                       ItemsSource="{x:Bind Model.Tasks, Mode=OneWay}"
                       ItemContainerStyle="{StaticResource PlainRow}">
                 <ListView.ItemTemplate>
@@ -86,6 +92,10 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
+
+            <local:Welcome Grid.Row="4" Card="False"
+                           Model="{x:Bind Model}"
+                           Visibility="{x:Bind Model.ShowEmptyHotkey, Mode=OneWay}" />
         </Grid>
     </Grid>
 </Window>

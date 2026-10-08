@@ -20,6 +20,20 @@ sealed class TaskRecord
 sealed class SettingsFile
 {
     public int SchemaVersion { get; set; }
+    public bool WelcomeRetired { get; set; }
+    public string ExtAgentHostId { get; set; } = "";
+    public string IssuedClientId { get; set; } = "";
+}
+
+sealed class TokenFile
+{
+    public string ClientId { get; set; } = "";
+    public string ExtAgentHostId { get; set; } = "";
+    public string AccessToken { get; set; } = "";
+    public string RefreshToken { get; set; } = "";
+    public string IdToken { get; set; } = "";
+    public DateTimeOffset AccessExpiresAt { get; set; }
+    public DateTimeOffset RefreshExpiresAt { get; set; }
 }
 
 [JsonSourceGenerationOptions(
@@ -27,4 +41,5 @@ sealed class SettingsFile
     WriteIndented = true)]
 [JsonSerializable(typeof(TaskFile))]
 [JsonSerializable(typeof(SettingsFile))]
+[JsonSerializable(typeof(TokenFile))]
 partial class WidgetJsonContext : JsonSerializerContext;

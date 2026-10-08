@@ -174,21 +174,34 @@ public sealed class CommitCaptureTests
 
 sealed class ManualClock : IClock
 {
-    readonly List<(long Due, Action Callback)> pending = [];
+    readonly Dictionary<long, (long Due, Action Callback)> pending = [];
     long now;
+    long next;
 
-    public void Schedule(TimeSpan delay, Action callback) =>
-        pending.Add((now + (long)delay.TotalMilliseconds, callback));
+    public DateTimeOffset UtcNow { get; private set; } = new(2026, 10, 8, 0, 0, 0, TimeSpan.Zero);
 
-    public void Cancel() => pending.Clear();
+    public long Schedule(TimeSpan delay, Action callback)
+    {
+        var id = ++next;
+        pending[id] = (now + (long)delay.TotalMilliseconds, callback);
+        return id;
+    }
+
+    public void Cancel(long id) => pending.Remove(id);
 
     public void Advance(TimeSpan by)
     {
         now += (long)by.TotalMilliseconds;
-        var due = pending.Where(item => item.Due <= now).ToArray();
-        foreach (var item in due)
-            pending.Remove(item);
-        foreach (var item in due)
-            item.Callback();
+        UtcNow = UtcNow.Add(by);
+        var due = pending.Where(item => item.Value.Due <= now).Select(item => item.Key).ToArray();
+        var callbacks = new List<Action>(due.Length);
+        foreach (var id in due)
+        {
+            callbacks.Add(pending[id].Callback);
+            pending.Remove(id);
+        }
+
+        foreach (var callback in callbacks)
+            callback();
     }
 }

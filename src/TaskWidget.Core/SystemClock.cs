@@ -2,17 +2,38 @@ namespace TaskWidget.Core;
 
 public sealed class SystemClock : IClock
 {
-    Timer? timer;
+    readonly object gate = new();
+    readonly Dictionary<long, Timer> timers = [];
+    long next;
 
-    public void Schedule(TimeSpan delay, Action callback)
+    public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+
+    public long Schedule(TimeSpan delay, Action callback)
     {
-        timer?.Dispose();
-        timer = new Timer(_ => callback(), null, delay, Timeout.InfiniteTimeSpan);
+        var id = Interlocked.Increment(ref next);
+        var timer = new Timer(_ =>
+        {
+            if (CancelCore(id))
+                callback();
+        });
+        lock (gate)
+            timers[id] = timer;
+        timer.Change(delay, Timeout.InfiniteTimeSpan);
+        return id;
     }
 
-    public void Cancel()
+    public void Cancel(long id) => CancelCore(id);
+
+    bool CancelCore(long id)
     {
-        timer?.Dispose();
-        timer = null;
+        Timer? timer;
+        lock (gate)
+        {
+            if (!timers.Remove(id, out timer))
+                return false;
+        }
+
+        timer.Dispose();
+        return true;
     }
 }

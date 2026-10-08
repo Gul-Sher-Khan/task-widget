@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -11,19 +13,41 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     readonly IClock clock;
     readonly string tasksPath;
     readonly string settingsPath;
+    readonly string tokenPath;
+    readonly HttpClient? httpClient;
+    readonly IBrowserLauncher? browser;
+    readonly IDataProtector? protector;
     readonly object gate = new();
+    SettingsFile settingsFile = new() { SchemaVersion = 1 };
     string? pendingTasks;
     string? pendingSettings;
+    long saveTimer;
     int dirty;
     int disposed;
 
-    public AppModel(string dataFolder, IClock clock)
+    public const string TokenFileName = "tokens.bin";
+
+    public AppModel(
+        string dataFolder,
+        IClock clock,
+        HttpMessageHandler? http = null,
+        IBrowserLauncher? browser = null,
+        IDataProtector? protector = null)
     {
         this.clock = clock;
+        this.browser = browser;
+        this.protector = protector;
+        if (http is not null)
+            httpClient = new HttpClient(http, disposeHandler: false);
         Directory.CreateDirectory(dataFolder);
         tasksPath = Path.Combine(dataFolder, "tasks.json");
         settingsPath = Path.Combine(dataFolder, "settings.json");
-        Tasks.CollectionChanged += (_, _) => OnPropertyChanged(nameof(OpenTaskCount));
+        tokenPath = Path.Combine(dataFolder, TokenFileName);
+        Tasks.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(OpenTaskCount));
+            OnPropertyChanged(nameof(ShowEmptyHotkey));
+        };
         Load();
     }
 
@@ -33,6 +57,37 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
     public int OpenTaskCount => Tasks.Count;
+
+    public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
+
+    public bool ShowEmptyHotkey => !ShowWelcome && Tasks.Count == 0;
+
+    [ObservableProperty]
+    public partial bool HasConnection { get; private set; }
+
+    [ObservableProperty]
+    public partial SignInPhase SignInState { get; private set; }
+
+    [ObservableProperty]
+    public partial string SignInStatus { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial string SignInCause { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial string Hotkey { get; private set; } = "Ctrl + Shift";
+
+    public bool SignInIdle => SignInState == SignInPhase.Idle;
+
+    public bool SignInWaiting => SignInState == SignInPhase.Waiting;
+
+    public bool SignInFailed => SignInState == SignInPhase.Failed;
+
+    public bool SignInNotEligible => SignInState == SignInPhase.NotEligible;
+
+    public bool SignInButton => SignInState is SignInPhase.Idle or SignInPhase.NotEligible;
+
+    public event Action? BringToFront;
 
     public void UpdateDraft(string text) => CaptureText = text;
 
@@ -55,11 +110,33 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (Interlocked.Exchange(ref disposed, 1) != 0)
             return;
 
-        clock.Cancel();
+        CancelSignIn();
+        clock.Cancel(saveTimer);
+        clock.Cancel(signInTimer);
         WriteIfDirty();
+        httpClient?.Dispose();
     }
 
     partial void OnCaptureTextChanged(string value) => MarkDirty();
+
+    partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
+
+    partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
+
+    void RaiseSignInBindings()
+    {
+        OnPropertyChanged(nameof(SignInIdle));
+        OnPropertyChanged(nameof(SignInWaiting));
+        OnPropertyChanged(nameof(SignInFailed));
+        OnPropertyChanged(nameof(SignInNotEligible));
+        OnPropertyChanged(nameof(SignInButton));
+    }
+
+    void RaiseWelcome()
+    {
+        OnPropertyChanged(nameof(ShowWelcome));
+        OnPropertyChanged(nameof(ShowEmptyHotkey));
+    }
 
     void MarkDirty()
     {
@@ -67,7 +144,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             return;
 
         var tasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
-        var settings = JsonSerializer.Serialize(new SettingsFile { SchemaVersion = 1 }, WidgetJsonContext.Default.SettingsFile);
+        var settings = JsonSerializer.Serialize(settingsFile, WidgetJsonContext.Default.SettingsFile);
         lock (gate)
         {
             pendingTasks = tasks;
@@ -75,8 +152,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             dirty = 1;
         }
 
-        clock.Cancel();
-        clock.Schedule(SaveDelay, WriteIfDirty);
+        clock.Cancel(saveTimer);
+        saveTimer = clock.Schedule(SaveDelay, WriteIfDirty);
     }
 
     TaskFile SnapshotTasks() => new()
@@ -102,6 +179,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     void Load()
     {
+        LoadSettings();
+        LoadConnection();
         if (!File.Exists(tasksPath))
             return;
 
@@ -119,6 +198,52 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
 
         CaptureText = file.Draft;
+    }
+
+    void LoadSettings()
+    {
+        if (!File.Exists(settingsPath))
+            return;
+
+        try
+        {
+            var file = JsonSerializer.Deserialize(File.ReadAllText(settingsPath), WidgetJsonContext.Default.SettingsFile);
+            if (file is not null)
+                settingsFile = file;
+        }
+        catch (JsonException)
+        {
+            settingsFile = new SettingsFile { SchemaVersion = 1 };
+        }
+        catch (IOException)
+        {
+            settingsFile = new SettingsFile { SchemaVersion = 1 };
+        }
+    }
+
+    void LoadConnection()
+    {
+        if (protector is null || !File.Exists(tokenPath))
+            return;
+
+        try
+        {
+            var plain = protector.Unprotect(File.ReadAllBytes(tokenPath));
+            var file = JsonSerializer.Deserialize(plain, WidgetJsonContext.Default.TokenFile);
+            HasConnection = file is not null && file.AccessToken.Length > 0;
+        }
+        catch (JsonException)
+        {
+            HasConnection = false;
+        }
+        catch (IOException)
+        {
+            HasConnection = false;
+        }
+        catch (CryptographicException)
+        {
+            HasConnection = false;
+        }
     }
 
     static Priority ParsePriority(string value) => value switch
@@ -164,12 +289,14 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             SwapIn(settingsPath, settings);
     }
 
-    static void SwapIn(string path, string contents)
+    static void SwapIn(string path, string contents) => SwapIn(path, Encoding.UTF8.GetBytes(contents));
+
+    static void SwapIn(string path, byte[] contents)
     {
         var tmp = path + ".tmp";
-        File.WriteAllText(tmp, contents);
+        File.WriteAllBytes(tmp, contents);
         if (!File.Exists(path))
-            File.WriteAllText(path, "");
+            File.WriteAllBytes(path, []);
         File.Replace(tmp, path, path + ".bak", ignoreMetadataErrors: true);
     }
 }
