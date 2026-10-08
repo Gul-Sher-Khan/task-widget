@@ -53,4 +53,16 @@ public sealed partial class SettingsPanel : UserControl
 
         Model.StartWithWindows = Startup.IsOn;
     }
+
+    void CheckNow_Click(object sender, RoutedEventArgs e) => _ = Model.CheckForUpdates();
+
+    void Update_Click(object sender, RoutedEventArgs e) => _ = Model.StartUpdate();
+
+    void Auto_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!ready)
+            return;
+
+        Model.AutoUpdate = Auto.IsOn;
+    }
 }
