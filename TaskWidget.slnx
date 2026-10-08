@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TaskWidget.Core/TaskWidget.Core.csproj" />
+    <Project Path="src/TaskWidget.Shell/TaskWidget.Shell.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TaskWidget.Tests/TaskWidget.Tests.csproj" />
+  </Folder>
+</Solution>

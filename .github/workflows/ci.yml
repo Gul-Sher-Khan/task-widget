@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Put vswhere on PATH
+        shell: pwsh
+        run: |
+          $vs = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          if (Test-Path $vs) { Add-Content $env:GITHUB_PATH $vs }
+
+      - name: Build
+        run: dotnet build TaskWidget.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test TaskWidget.slnx --configuration Release --no-build
+
+      - name: Publish win-x64
+        run: dotnet publish src/TaskWidget.Shell/TaskWidget.Shell.csproj -c Release -r win-x64 -o artifacts/win-x64
+
+      - name: Publish win-arm64
+        run: dotnet publish src/TaskWidget.Shell/TaskWidget.Shell.csproj -c Release -r win-arm64 -o artifacts/win-arm64
+
+      - name: Require pri and xbf
+        shell: pwsh
+        run: |
+          foreach ($rid in "win-x64", "win-arm64") {
+            $dir = "artifacts/$rid"
+            if (-not (Get-ChildItem $dir -Filter *.pri)) { throw "missing .pri in $dir" }
+            if (-not (Get-ChildItem $dir -Filter *.xbf)) { throw "missing .xbf in $dir" }
+          }
