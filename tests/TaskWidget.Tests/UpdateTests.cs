@@ -165,7 +165,8 @@ public sealed class UpdateTests
     public async Task The_next_startup_waits_a_day_before_asking_again()
     {
         var folder = Directory.CreateTempSubdirectory("tw-update-day").FullName;
-        var clock = new ManualClock();
+        var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var clock = new ManualClock(start);
         var first = new ReleaseHandler { Respond = _ => Json(Newer) };
         var model = new AppModel(folder, clock, http: first);
         try
@@ -174,7 +175,7 @@ public sealed class UpdateTests
             Assert.Equal("1.2.0", model.NewVersion);
             model.Dispose();
 
-            var soonClock = new ManualClock();
+            var soonClock = new ManualClock(start);
             soonClock.Set(new DateTimeOffset(2026, 1, 1, 23, 59, 0, TimeSpan.Zero));
             var soon = new ReleaseHandler { Respond = _ => Json(Newer) };
             var again = new AppModel(folder, soonClock, http: soon);
@@ -184,7 +185,7 @@ public sealed class UpdateTests
             Assert.Equal("Checked today, 00:00", again.CheckedWhen);
             again.Dispose();
 
-            var dueClock = new ManualClock();
+            var dueClock = new ManualClock(start);
             dueClock.Set(new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero));
             var due = new ReleaseHandler { Respond = _ => Json(Current) };
             var later = new AppModel(folder, dueClock, http: due);

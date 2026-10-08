@@ -174,26 +174,52 @@ public sealed class CommitCaptureTests
 
 sealed class ManualClock : IClock
 {
-    readonly List<(long Due, Action Callback)> pending = [];
+    readonly List<Entry> pending = [];
+    readonly DateTimeOffset start;
     long now;
 
-    public DateTimeOffset Now { get; private set; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    public ManualClock()
+        : this(new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero))
+    {
+    }
 
-    public void Set(DateTimeOffset time) => Now = time;
+    public ManualClock(DateTimeOffset start) => this.start = start;
 
-    public void Schedule(TimeSpan delay, Action callback) =>
-        pending.Add((now + (long)delay.TotalMilliseconds, callback));
+    public DateTimeOffset UtcNow => start.AddMilliseconds(now);
+
+    public DateTimeOffset Now => UtcNow;
+
+    public void Set(DateTimeOffset time) => now = (long)(time - start).TotalMilliseconds;
+
+    public IDisposable Schedule(TimeSpan delay, Action callback)
+    {
+        var entry = new Entry(now + (long)delay.TotalMilliseconds, callback);
+        pending.Add(entry);
+        return new Handle(this, entry);
+    }
 
     public void Cancel() => pending.Clear();
 
     public void Advance(TimeSpan by)
     {
         now += (long)by.TotalMilliseconds;
-        Now += by;
         var due = pending.Where(item => item.Due <= now).ToArray();
         foreach (var item in due)
             pending.Remove(item);
         foreach (var item in due)
             item.Callback();
+    }
+
+    void Cancel(Entry entry) => pending.Remove(entry);
+
+    sealed class Entry(long due, Action callback)
+    {
+        public long Due { get; } = due;
+        public Action Callback { get; } = callback;
+    }
+
+    sealed class Handle(ManualClock clock, Entry entry) : IDisposable
+    {
+        public void Dispose() => clock.Cancel(entry);
     }
 }

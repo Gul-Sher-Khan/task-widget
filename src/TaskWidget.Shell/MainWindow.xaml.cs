@@ -68,8 +68,11 @@ public sealed partial class MainWindow : Window
 
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
         List.PreviewKeyDown += List_PreviewKeyDown;
+        List.RightTapped += List_RightTapped;
         List.DragItemsStarting += List_DragItemsStarting;
         List.DragItemsCompleted += List_DragItemsCompleted;
+        Root.KeyDown += Root_KeyDown;
+        ApplyUndoMotion();
         Host.SizeChanged += (_, _) => OnHostSize();
         Model.PropertyChanged += OnModelPropertyChanged;
         Closed += (_, _) =>
@@ -83,23 +86,118 @@ public sealed partial class MainWindow : Window
 
     public AppModel Model { get; }
 
-    void Resort_Click(object sender, RoutedEventArgs e) => Model.ReSort();
+void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
+
+    void Check_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.Tick(task);
+    }
+
+    void Undo_Click(object sender, RoutedEventArgs e) => Model.Undo();
 
     void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
-            .HasFlag(CoreVirtualKeyStates.Down);
-        if (!ctrl || List.SelectedIndex < 0)
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        if (ctrl && List.SelectedIndex >= 0)
+        {
+            if (e.Key == VirtualKey.Up)
+                Model.MoveTo(List.SelectedIndex, List.SelectedIndex - 1);
+            else if (e.Key == VirtualKey.Down)
+                Model.MoveTo(List.SelectedIndex, List.SelectedIndex + 1);
+            else
+                ctrl = false;
+
+            if (ctrl)
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
+        switch (e.Key)
+        {
+            case VirtualKey.Up:
+                Model.SelectUp();
+                break;
+            case VirtualKey.Down:
+                Model.SelectDown();
+                break;
+            case VirtualKey.Space:
+                Model.TickSelected();
+                break;
+            case VirtualKey.Delete:
+                Model.DeleteSelected();
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    void List_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskRow task)
             return;
 
-        if (e.Key == VirtualKey.Up)
-            Model.MoveTo(List.SelectedIndex, List.SelectedIndex - 1);
-        else if (e.Key == VirtualKey.Down)
-            Model.MoveTo(List.SelectedIndex, List.SelectedIndex + 1);
+        var item = new MenuFlyoutItem
+        {
+            Text = "Delete",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+        };
+        item.Click += (_, _) => Model.Delete(task);
+        var menu = new MenuFlyout();
+        menu.Items.Add(item);
+        menu.ShowAt(e.OriginalSource as FrameworkElement, e.GetPosition(e.OriginalSource as UIElement));
+        e.Handled = true;
+    }
+
+    void Root_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (Root.XamlRoot is null || FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
+            return;
+
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        if (!ctrl)
+            return;
+
+        if (e.Key == VirtualKey.Z)
+            Model.Undo();
+        else if (e.Key == VirtualKey.Y)
+            Model.Redo();
         else
             return;
 
         e.Handled = true;
+    }
+
+    void Resort_Click(object sender, RoutedEventArgs e) => Model.ReSort();
+
+    void ApplyUndoMotion()
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(UndoPill);
+        var compositor = visual.Compositor;
+        var show = compositor.CreateAnimationGroup();
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.Target = "Opacity";
+        fade.InsertKeyFrame(0, 0);
+        fade.InsertKeyFrame(1, 1);
+        fade.Duration = TimeSpan.FromMilliseconds(Ms("UndoFadeInMs"));
+        var rise = compositor.CreateScalarKeyFrameAnimation();
+        rise.Target = "Translation.Y";
+        rise.InsertKeyFrame(0, (float)Ms("UndoRisePx"));
+        rise.InsertKeyFrame(1, 0, Ease(compositor, true));
+        rise.Duration = TimeSpan.FromMilliseconds(Ms("UndoInMs"));
+        show.Add(fade);
+        show.Add(rise);
+        var hide = compositor.CreateScalarKeyFrameAnimation();
+        hide.Target = "Opacity";
+        hide.InsertKeyFrame(1, 0);
+        hide.Duration = TimeSpan.FromMilliseconds(Ms("UndoOutMs"));
+        ElementCompositionPreview.SetIsTranslationEnabled(UndoPill, true);
+        ElementCompositionPreview.SetImplicitShowAnimation(UndoPill, show);
+        ElementCompositionPreview.SetImplicitHideAnimation(UndoPill, hide);
     }
 
     void List_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
