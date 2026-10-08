@@ -9,10 +9,21 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        if (!InstanceGate.TryAcquire(InstanceGate.DefaultName, out var gate))
+        {
+            DesktopLayer.LetAnotherProcessTakeTheForeground();
+            InstanceGate.SignalRaise(InstanceGate.DefaultName);
+            Environment.Exit(0);
+            return;
+        }
+
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TaskWidget");
         var window = new MainWindow(new AppModel(folder, new SystemClock()));
+        gate.RaiseRequested += () => window.DispatcherQueue.TryEnqueue(window.Raise);
+        gate.Listen();
+        window.Closed += (_, _) => gate.Dispose();
         window.Activate();
     }
 }
