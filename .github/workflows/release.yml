@@ -1,0 +1,199 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  version:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Read the version from the tag
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$') {
+            throw "Tag '$tag' is not SemVer. The git tag is the only version source."
+          }
+          $version = $tag.Substring(1)
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+  publish:
+    needs: version
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rid: win-x64
+          - arch: arm64
+            rid: win-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Put vswhere on PATH
+        shell: pwsh
+        run: |
+          $vs = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          if (Test-Path $vs) { Add-Content $env:GITHUB_PATH $vs }
+
+      - name: Publish ${{ matrix.rid }}
+        run: >
+          dotnet publish src/TaskWidget.Shell/TaskWidget.Shell.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          -o artifacts/${{ matrix.rid }}
+          -p:Version=${{ needs.version.outputs.version }}
+          -p:InformationalVersion=${{ needs.version.outputs.version }}
+          -p:IncludeSourceRevisionInInformationalVersion=false
+
+      - name: Require pri, xbf, and the tag version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = "artifacts/${{ matrix.rid }}"
+          if (-not (Get-ChildItem $dir -Filter *.pri)) { throw "missing .pri in $dir" }
+          if (-not (Get-ChildItem $dir -Filter *.xbf)) { throw "missing .xbf in $dir" }
+          $expected = "${{ needs.version.outputs.version }}"
+          $info = [Diagnostics.FileVersionInfo]::GetVersionInfo("$dir/TaskWidget.exe")
+          if ($info.ProductVersion -ne $expected) {
+            throw "ProductVersion is '$($info.ProductVersion)', expected '$expected' from the tag."
+          }
+
+      - name: Install Inno Setup 7
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidates = @(
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe"
+          )
+          if ($candidates | Where-Object { Test-Path $_ } | Select-Object -First 1) { exit 0 }
+          winget install --id JRSoftware.InnoSetup.7 -e --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if (-not ($candidates | Where-Object { Test-Path $_ } | Select-Object -First 1)) {
+            throw "ISCC.exe not found after installing Inno Setup 7."
+          }
+
+      - name: Compile the ${{ matrix.arch }} installer
+        shell: pwsh
+        run: >
+          ./installer/compile.ps1
+          -Version "${{ needs.version.outputs.version }}"
+          -Arch ${{ matrix.arch }}
+          -PublishDir "artifacts/${{ matrix.rid }}"
+          -OutputDir "artifacts/installers"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.arch }}
+          path: artifacts/installers/TaskWidget-${{ needs.version.outputs.version }}-${{ matrix.arch }}.exe
+          if-no-files-found: error
+
+  release:
+    needs: [version, publish]
+    runs-on: windows-latest
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: dist
+
+      - name: Require both installers under 20 MB
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = "${{ needs.version.outputs.version }}"
+          $limit = 20MB
+          foreach ($arch in "x64", "arm64") {
+            $path = "dist/TaskWidget-$version-$arch.exe"
+            if (-not (Test-Path $path)) { throw "Missing $path" }
+            $length = (Get-Item $path).Length
+            if ($length -ge $limit) { throw "$path is $length bytes, which is not under 20 MB." }
+            Write-Host "$path $length"
+          }
+
+      - name: SignPath is not configured
+        if: env.SIGNPATH_API_TOKEN == '' || env.SIGNPATH_ORGANIZATION_ID == '' || env.SIGNPATH_PROJECT_SLUG == '' || env.SIGNPATH_SIGNING_POLICY_SLUG == ''
+        shell: pwsh
+        run: Write-Host "SignPath credentials are absent. This release ships unsigned."
+
+      - name: Upload unsigned installers for SignPath
+        id: upload-unsigned
+        if: env.SIGNPATH_API_TOKEN != '' && env.SIGNPATH_ORGANIZATION_ID != '' && env.SIGNPATH_PROJECT_SLUG != '' && env.SIGNPATH_SIGNING_POLICY_SLUG != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installers
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Sign installers with SignPath
+        id: sign
+        if: env.SIGNPATH_API_TOKEN != '' && env.SIGNPATH_ORGANIZATION_ID != '' && env.SIGNPATH_PROJECT_SLUG != '' && env.SIGNPATH_SIGNING_POLICY_SLUG != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ github.workspace }}\dist\signed
+
+      - name: Use the signed installers
+        if: steps.sign.outcome == 'success'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $signed = Get-ChildItem dist\signed -Recurse -Filter *.exe
+          if (-not $signed) { throw "SignPath did not return any installers." }
+          foreach ($file in $signed) {
+            Copy-Item $file.FullName -Destination (Join-Path dist $file.Name) -Force
+          }
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $tag = "${{ github.ref_name }}"
+          $version = "${{ needs.version.outputs.version }}"
+          $body = ""
+          try {
+            $body = gh api -X POST "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$tag" --jq .body
+          } catch {
+            $body = "Task Widget $version"
+          }
+          if ("${{ steps.sign.outcome }}" -eq "success") {
+            $body += "`n`nSigned with SignPath.`n"
+          } else {
+            $body += "`n`nThis build is unsigned. If Windows blocks the installer, see the README section `"If Windows blocks the installer`".`n"
+          }
+          $notes = Join-Path (Get-Location) "release-notes.md"
+          [System.IO.File]::WriteAllText($notes, $body, (New-Object System.Text.UTF8Encoding $false))
+          gh release create $tag --draft --title $tag --notes-file $notes `
+            "dist/TaskWidget-$version-x64.exe" `
+            "dist/TaskWidget-$version-arm64.exe"
