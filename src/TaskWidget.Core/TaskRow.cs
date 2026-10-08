@@ -18,9 +18,31 @@ public sealed partial class TaskRow : ObservableObject
     [ObservableProperty]
     public partial string Title { get; set; }
 
-    public Priority Priority { get; }
-    public Effort Effort { get; }
-    public string Details { get; }
+    [ObservableProperty]
+    public partial Priority Priority { get; set; }
+
+    [ObservableProperty]
+    public partial Effort Effort { get; set; }
+
+    [ObservableProperty]
+    public partial bool UserSetPriority { get; set; }
+
+    [ObservableProperty]
+    public partial bool UserSetEffort { get; set; }
+
+    [ObservableProperty]
+    public partial string Details { get; set; }
+
+    public bool HasDetails => !string.IsNullOrWhiteSpace(Details);
+
+    partial void OnDetailsChanged(string value) => OnPropertyChanged(nameof(HasDetails));
+
+    [ObservableProperty]
+    public partial bool IsEditing { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpanded { get; set; }
+
     public string Capture { get; }
 
     [ObservableProperty]

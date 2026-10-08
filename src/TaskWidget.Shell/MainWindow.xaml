@@ -5,6 +5,10 @@
     xmlns:local="using:TaskWidget"
     xmlns:core="using:TaskWidget.Core">
     <Grid x:Name="Host" Background="{ThemeResource SurfaceSolidBrush}">
+        <ScrollViewer x:Name="WidgetScroll" HorizontalAlignment="Left" VerticalAlignment="Top"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled"
+                      ZoomMode="Disabled" IsTabStop="False" Background="Transparent">
         <Grid x:Name="Root" Width="360" Padding="0,0,0,8" HorizontalAlignment="Left" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -16,7 +20,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Padding="16,10,8,4" ColumnSpacing="2">
+            <Grid x:Name="HeaderStrip" Padding="16,10,8,4" ColumnSpacing="2" Background="Transparent" PointerPressed="Header_PointerPressed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -66,11 +70,19 @@
             <Grid x:Name="BannerHost" Grid.Row="1" Visibility="{x:Bind local:Row.When(Model.HasBanner), Mode=OneWay}" />
 
             <Grid Grid.Row="2" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
-                <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
+                <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,32,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
-                         PlaceholderText="Capture a thought…"
+                         PlaceholderText="{x:Bind Model.CapturePlaceholder, Mode=OneWay}"
                          Text="{x:Bind Model.CaptureText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
+                <Button Style="{StaticResource Bare}" Width="22" Height="22"
+                        HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                        Click="ClearDraft_Click"
+                        Visibility="{x:Bind local:Row.When(Model.HasDraftText), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE711;" FontSize="12" />
+                </Button>
+                <ProgressBar IsIndeterminate="True" VerticalAlignment="Bottom" Margin="6,0,6,0" IsHitTestVisible="False"
+                             Visibility="{x:Bind local:Row.When(Model.WaitingDictation), Mode=OneWay}" />
             </Grid>
 
             <local:Welcome Grid.Row="3" Card="True" local:Fx.Enter="True"
@@ -81,7 +93,7 @@
                 <ListView x:Name="List" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
                           ItemsSource="{x:Bind Model.VisibleTasks, Mode=OneWay}"
                           SelectedIndex="{x:Bind Model.SelectedIndex, Mode=TwoWay}"
-                          SelectionMode="Single"
+                          SelectionMode="Single" IsItemClickEnabled="True" ItemClick="List_ItemClick"
                           CanDragItems="True" CanReorderItems="True" AllowDrop="True"
                           ItemContainerStyle="{StaticResource PlainRow}"
                           Visibility="{x:Bind Model.ShowingTasks, Mode=OneWay}">
@@ -123,20 +135,30 @@
                             <StackPanel Grid.Column="1" Spacing="4" Opacity="{x:Bind local:Row.DoneFade(IsDone, IsStriking), Mode=OneWay}">
                                 <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
                                            TextTrimming="CharacterEllipsis"
-                                           TextDecorations="{x:Bind local:Row.Strike(IsStriking), Mode=OneWay}" />
+                                           TextDecorations="{x:Bind local:Row.Strike(IsStriking), Mode=OneWay}"
+                                           DoubleTapped="Title_DoubleTapped"
+                                           Visibility="{x:Bind local:Row.Unless(IsEditing), Mode=OneWay}" />
+                                <TextBox Visibility="{x:Bind local:Row.When(IsEditing), Mode=OneWay}" Loaded="Edit_Loaded"
+                                         FontSize="13.5" Padding="6,3,6,3" MinHeight="0" />
                                 <TextBlock Text="{x:Bind PendingText, Mode=OneWay}" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}"
                                            Visibility="{x:Bind IsPending, Mode=OneWay}" />
+                                <local:Accordion IsOpen="{x:Bind IsExpanded, Mode=OneWay}">
+                                    <TextBox Text="{x:Bind Details, Mode=OneWay}" FontSize="12.5" TextWrapping="Wrap" AcceptsReturn="True"
+                                             Foreground="{ThemeResource MutedTextBrush}" Margin="0,0,0,2"
+                                             Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                                             Loaded="Details_Loaded" />
+                                </local:Accordion>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Top"
                                         Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
                                 <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource FaintTextBrush}" Margin="0,0,4,0"
-                                          Visibility="{x:Bind local:Row.WhenDetails(Details), Mode=OneTime}" />
-                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" MinWidth="26">
-                                    <local:EffortChip Effort="{x:Bind Effort, Mode=OneTime}" />
+                                          Visibility="{x:Bind local:Row.When(HasDetails), Mode=OneWay}" />
+                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" MinWidth="26" Click="Effort_Click">
+                                    <local:EffortChip Effort="{x:Bind Effort, Mode=OneWay}" />
                                 </Button>
-                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3">
-                                    <local:PriorityBadge Priority="{x:Bind Priority, Mode=OneTime}" />
+                                <Button Style="{StaticResource Bare}" Padding="4,3,4,3" Click="Priority_Click">
+                                    <local:PriorityBadge Priority="{x:Bind Priority, Mode=OneWay}" />
                                 </Button>
                             </StackPanel>
                         </Grid>
@@ -173,6 +195,7 @@
 
             <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
+        </ScrollViewer>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
               Background="Transparent" Visibility="Collapsed" PointerPressed="Dock_PointerPressed">

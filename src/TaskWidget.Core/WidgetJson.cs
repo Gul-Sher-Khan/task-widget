@@ -27,6 +27,8 @@ sealed class TaskRecord
     public string Details { get; set; } = "";
     public string Priority { get; set; } = "";
     public string Effort { get; set; } = "";
+    public bool UserSetPriority { get; set; }
+    public bool UserSetEffort { get; set; }
     public DateTimeOffset? Created { get; set; }
     public DateTimeOffset? CreatedAt { get; set; }
     public int Spoken { get; set; }
@@ -48,8 +50,10 @@ sealed class SettingsFile
     public string UpdateResult { get; set; } = "";
     public string InstallerUrl { get; set; } = "";
     public bool WelcomeRetired { get; set; }
+    public string HomeMonitor { get; set; } = "";
     public string ExtAgentHostId { get; set; } = "";
     public string IssuedClientId { get; set; } = "";
+    public string Hotkey { get; set; } = "";
     public DateTimeOffset ModelsCachedAt { get; set; }
     public List<CachedModel> Models { get; set; } = [];
 }

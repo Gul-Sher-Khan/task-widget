@@ -270,6 +270,162 @@ public void Move(TaskRow task, int index)
             Tick(task);
     }
 
+    public void ExpandSelected()
+    {
+        if (Selected() is TaskRow task)
+            ToggleDetails(task);
+    }
+
+    public void ToggleDetails(TaskRow task)
+    {
+        if (task.NotTask || !task.HasDetails || (!Tasks.Contains(task) && !finished.Contains(task)))
+            return;
+
+        var open = !task.IsExpanded;
+        foreach (var row in Tasks.Concat(finished))
+            row.IsExpanded = false;
+        task.IsExpanded = open;
+    }
+
+    public void EditSelectedTitle()
+    {
+        if (Selected() is TaskRow task)
+            BeginTitleEdit(task);
+    }
+
+    public void BeginTitleEdit(TaskRow task)
+    {
+        if (task.NotTask)
+            return;
+        if (Tasks.Contains(task) || finished.Contains(task))
+            task.IsEditing = true;
+    }
+
+    public void CancelTitleEdit(TaskRow task) => task.IsEditing = false;
+
+    public void EditTitle(TaskRow task, string title)
+    {
+        task.IsEditing = false;
+        if (task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
+            return;
+
+        title = title.Trim();
+        var old = task.Title;
+        if (title.Length == 0 || title == old)
+            return;
+
+        task.Title = title;
+        Replace(task, () => task.Title = old, () => task.Title = title);
+    }
+
+    public void CyclePriority(TaskRow task)
+    {
+        if (task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
+            return;
+
+        var old = task.Priority;
+        var wasSet = task.UserSetPriority;
+        var next = (Priority)(((int)old + 1) % 3);
+        task.Priority = next;
+        task.UserSetPriority = true;
+        Replace(
+            task,
+            () =>
+            {
+                task.Priority = old;
+                task.UserSetPriority = wasSet;
+            },
+            () =>
+            {
+                task.Priority = next;
+                task.UserSetPriority = true;
+            });
+    }
+
+    public void CycleEffort(TaskRow task)
+    {
+        if (task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
+            return;
+
+        var old = task.Effort;
+        var wasSet = task.UserSetEffort;
+        var next = (Effort)(((int)old + 1) % 3);
+        task.Effort = next;
+        task.UserSetEffort = true;
+        Replace(
+            task,
+            () =>
+            {
+                task.Effort = old;
+                task.UserSetEffort = wasSet;
+            },
+            () =>
+            {
+                task.Effort = next;
+                task.UserSetEffort = true;
+            });
+    }
+
+    public void EditDetails(TaskRow task, string details)
+    {
+        if (task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
+            return;
+
+        details = details.Trim();
+        var old = task.Details;
+        if (details == old)
+            return;
+
+        var wasOpen = task.IsExpanded;
+        task.Details = details;
+        if (!task.HasDetails)
+            task.IsExpanded = false;
+        Replace(
+            task,
+            () =>
+            {
+                task.Details = old;
+                task.IsExpanded = wasOpen;
+            },
+            () =>
+            {
+                task.Details = details;
+                task.IsExpanded = wasOpen && !string.IsNullOrWhiteSpace(details);
+            });
+    }
+
+    // An edited Task goes just before the first Task the ranking puts strictly below it.
+    void Replace(TaskRow task, Action undoProp, Action redoProp)
+    {
+        if (!Tasks.Contains(task))
+        {
+            MarkDirty();
+            Push("Edit", () => { undoProp(); MarkDirty(); }, () => { redoProp(); MarkDirty(); }, pill: false);
+            return;
+        }
+
+        var previous = Tasks.IndexOf(task);
+        Tasks.Remove(task);
+        Tasks.Insert(IndexFor(task), task);
+        var landed = Tasks.IndexOf(task);
+        MarkDirty();
+        Push(
+            "Edit",
+            () =>
+            {
+                undoProp();
+                Place(task, Math.Min(previous, Tasks.Count - 1));
+                MarkDirty();
+            },
+            () =>
+            {
+                redoProp();
+                Place(task, Math.Min(landed, Tasks.Count - 1));
+                MarkDirty();
+            },
+            pill: false);
+    }
+
     public void DeleteSelected()
     {
         if (Selected() is not TaskRow task)
@@ -700,6 +856,7 @@ public void Move(TaskRow task, int index)
         if (text.Length == 0)
             return;
 
+        StopWaiting();
         if (HasConnection && httpClient is not null)
         {
             var work = Interpret(text);
@@ -797,6 +954,7 @@ public void Move(TaskRow task, int index)
         Tasks.Remove(task);
         task.IsStriking = false;
         task.IsDone = true;
+        task.IsExpanded = false;
         task.CompletedAt = completedAt;
         finished.Insert(0, task);
         ShowDoneWindow();
@@ -910,7 +1068,12 @@ public void MoveTo(int from, int to)
         httpClient?.Dispose();
     }
 
-    partial void OnCaptureTextChanged(string value) => MarkDirty();
+    partial void OnCaptureTextChanged(string value)
+    {
+        MarkDirty();
+        OnPropertyChanged(nameof(HasDraftText));
+        NoteDraftForDictation(value);
+    }
 
     partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
 
@@ -995,6 +1158,8 @@ Manual = HasManualPositions,
         Details = task.Details,
         Priority = PriorityName(task.Priority),
         Effort = EffortName(task.Effort),
+        UserSetPriority = task.UserSetPriority,
+        UserSetEffort = task.UserSetEffort,
         Created = task.CreatedAt,
         CreatedAt = task.CreatedAt,
         Spoken = task.Spoken,
@@ -1013,6 +1178,8 @@ Manual = HasManualPositions,
         IssuedClientId = settingsFile.IssuedClientId,
         Theme = ThemeName(theme),
         Backdrop = BackdropName(backdrop),
+        HomeMonitor = settingsFile.HomeMonitor,
+        Hotkey = hotkeyBinding.Text,
         CheckForUpdatesAutomatically = checkAutomatically,
         LastUpdateCheck = lastUpdateCheck,
         AvailableVersion = newVersion,
@@ -1063,6 +1230,8 @@ Manual = HasManualPositions,
             var at = record.Created ?? record.CreatedAt ?? clock.Now;
             task.CreatedAt = at;
             task.Spoken = record.Spoken;
+            task.UserSetPriority = record.UserSetPriority;
+            task.UserSetEffort = record.UserSetEffort;
             created[task] = at;
             spoken[task] = record.Spoken;
             if (record.DeletedAt is DateTimeOffset deletedAt)
@@ -1163,6 +1332,7 @@ Manual = HasManualPositions,
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
         theme = ParseTheme(file.Theme);
         backdrop = ParseBackdrop(file.Backdrop);
+        ApplyHotkey(file.Hotkey);
         checkAutomatically = file.CheckForUpdatesAutomatically;
         lastUpdateCheck = file.LastUpdateCheck;
         installerUrl = file.InstallerUrl;
