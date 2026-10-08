@@ -14,7 +14,7 @@ using WinRT.Interop;
 
 namespace TaskWidget;
 
-// Widget z-order, Dock chrome, and full-screen detection. No Progman or WorkerW reparenting.
+// Widget z-order, Dock chrome, full-screen detection, and display-change messages. No Progman or WorkerW reparenting.
 sealed partial class DesktopLayer : IDisposable
 {
     enum Layer
@@ -86,6 +86,14 @@ sealed partial class DesktopLayer : IDisposable
     }
 
     public event Action? Deactivated;
+
+    public event Action? DisplayChanged;
+
+    public event Action? WorkAreaChanged;
+
+    public event Action<DpiNotice>? DpiChanged;
+
+    public readonly record struct DpiNotice(int OuterWidth, int OuterHeight);
 
     public static void LetAnotherProcessTakeTheForeground() =>
         PInvoke.AllowSetForegroundWindow(PInvoke.ASFW_ANY);
@@ -228,6 +236,12 @@ sealed partial class DesktopLayer : IDisposable
         }
     }
 
+    public void DragByCaption()
+    {
+        PInvoke.ReleaseCapture();
+        PInvoke.SendMessage(hwnd, PInvoke.WM_NCLBUTTONDOWN, (WPARAM)(nuint)PInvoke.HTCAPTION, default);
+    }
+
     public void YieldToFullScreen()
     {
         if (covering.IsNull || covering == hwnd || !PInvoke.IsWindow(covering))
@@ -301,12 +315,38 @@ sealed partial class DesktopLayer : IDisposable
         layer.dispatcher.TryEnqueue(() => layer.CheckFullScreen());
     }
 
+    unsafe static DpiNotice ReadSuggested(LPARAM lParam)
+    {
+        var suggested = (RECT*)(nint)lParam;
+        if (suggested is null)
+            return new DpiNotice(0, 0);
+        return new DpiNotice(suggested->right - suggested->left, suggested->bottom - suggested->top);
+    }
+
     LRESULT Handle(HWND window, uint msg, WPARAM wParam, LPARAM lParam)
     {
-        if (msg == taskbarCreated)
+        if (msg == taskbarCreated || msg == PInvoke.WM_DISPLAYCHANGE)
         {
-            dispatcher.TryEnqueue(() => reanchor());
+            dispatcher.TryEnqueue(() =>
+            {
+                if (msg == taskbarCreated)
+                    reanchor();
+                else
+                    DisplayChanged?.Invoke();
+            });
             return PInvoke.DefSubclassProc(window, msg, wParam, lParam);
+        }
+
+        if (msg == PInvoke.WM_SETTINGCHANGE && (SYSTEM_PARAMETERS_INFO_ACTION)(uint)wParam.Value == SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETWORKAREA)
+        {
+            dispatcher.TryEnqueue(() => WorkAreaChanged?.Invoke());
+            return PInvoke.DefSubclassProc(window, msg, wParam, lParam);
+        }
+
+        if (msg == PInvoke.WM_DPICHANGED)
+        {
+            DpiChanged?.Invoke(ReadSuggested(lParam));
+            return default;
         }
 
         if (msg == PInvoke.WM_ACTIVATE)

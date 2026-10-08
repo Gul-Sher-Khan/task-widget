@@ -15,10 +15,34 @@ public sealed partial class TaskRow : ObservableObject
         PendingText = pending ? "Interpreting…" : "";
     }
 
-    public string Title { get; }
-    public Priority Priority { get; }
-    public Effort Effort { get; }
-    public string Details { get; }
+    [ObservableProperty]
+    public partial string Title { get; set; }
+
+    [ObservableProperty]
+    public partial Priority Priority { get; set; }
+
+    [ObservableProperty]
+    public partial Effort Effort { get; set; }
+
+    [ObservableProperty]
+    public partial bool UserSetPriority { get; set; }
+
+    [ObservableProperty]
+    public partial bool UserSetEffort { get; set; }
+
+    [ObservableProperty]
+    public partial string Details { get; set; }
+
+    public bool HasDetails => !string.IsNullOrWhiteSpace(Details);
+
+    partial void OnDetailsChanged(string value) => OnPropertyChanged(nameof(HasDetails));
+
+    [ObservableProperty]
+    public partial bool IsEditing { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsExpanded { get; set; }
+
     public string Capture { get; }
 
     [ObservableProperty]
@@ -31,10 +55,32 @@ public sealed partial class TaskRow : ObservableObject
     public partial bool IsWaiting { get; set; }
 
     [ObservableProperty]
+    public partial bool LightsDot { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsFailed { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsEditingCapture { get; private set; }
+
+    [ObservableProperty]
     public partial string Reason { get; set; } = "";
 
     [ObservableProperty]
-    public partial bool LightsDot { get; set; }
+    public partial string ReasonTip { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial bool MakeTaskFirst { get; private set; }
+
+    public bool RetryFirst => !MakeTaskFirst;
+
+    public bool ShowFailed => IsFailed && !IsEditingCapture;
+
+    public bool IsCaptureRow => IsFailed || IsEditingCapture;
+
+    public bool IsTaskRow => !IsCaptureRow && !IsPending && !IsWaiting;
+
+    public bool NotTask => IsPending || IsWaiting || IsCaptureRow;
 
     public DateTimeOffset CreatedAt { get; internal set; }
     public int Spoken { get; internal set; }
@@ -46,4 +92,54 @@ public sealed partial class TaskRow : ObservableObject
 
     [ObservableProperty]
     public partial bool IsDone { get; set; }
+
+    public void BeginInterpret()
+    {
+        IsEditingCapture = false;
+        IsFailed = false;
+        IsWaiting = false;
+        LightsDot = false;
+        MakeTaskFirst = false;
+        Reason = "";
+        ReasonTip = "";
+        PendingText = "Interpreting…";
+        IsPending = true;
+        RaiseKind();
+    }
+
+    public void Fail(string reason, string tip, bool makeTaskFirst)
+    {
+        IsPending = false;
+        IsEditingCapture = false;
+        Reason = reason;
+        ReasonTip = tip;
+        MakeTaskFirst = makeTaskFirst;
+        IsFailed = true;
+        RaiseKind();
+    }
+
+    public void BeginEdit()
+    {
+        if (!IsFailed)
+            return;
+        IsEditingCapture = true;
+        RaiseKind();
+    }
+
+    public void CancelEdit()
+    {
+        if (!IsEditingCapture)
+            return;
+        IsEditingCapture = false;
+        RaiseKind();
+    }
+
+    void RaiseKind()
+    {
+        OnPropertyChanged(nameof(RetryFirst));
+        OnPropertyChanged(nameof(ShowFailed));
+        OnPropertyChanged(nameof(IsCaptureRow));
+        OnPropertyChanged(nameof(IsTaskRow));
+        OnPropertyChanged(nameof(NotTask));
+    }
 }

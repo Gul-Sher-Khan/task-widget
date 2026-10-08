@@ -43,16 +43,29 @@ public sealed partial class MainWindow : Window
     int dragFrom = -1;
     bool driving;
     bool slide;
+    bool headerDrag;
+    bool arriving;
+    bool arranging;
+    bool capping;
+    bool sizingDpi;
+    double snapX1;
+    double snapY1;
+    double snapX2;
+    double snapY2;
+    readonly List<MonitorSnap> screens = [];
     RectInt32 fromRect;
     RectInt32 toRect;
     Action? animDone;
     readonly DesktopLayer desktop;
+    readonly CaptureHotkey hotkey;
 
     public MainWindow(AppModel model)
     {
         Model = model;
         InitializeComponent();
-        SettingsHost.Children.Add(new SettingsPanel(model));
+        Host.DataContext = model;
+        var settings = new SettingsPanel(model);
+        SettingsHost.Children.Add(settings);
         BannerHost.Children.Add(new BannerView(model));
         Title = "Task Widget";
 
@@ -64,11 +77,17 @@ public sealed partial class MainWindow : Window
         AppWindow.SetPresenter(presenter);
 
         desktop = new DesktopLayer(this, Model, Reanchor);
+        desktop.DisplayChanged += Reanchor;
+        desktop.WorkAreaChanged += Reanchor;
+        desktop.DpiChanged += OnDpi;
+        hotkey = new CaptureHotkey(this, Model, () => Capture.Text);
+        settings.RecordingChanged = value => hotkey.Recording = value;
         AppWindow.Closing += (_, _) => desktop.AllowClose();
 
         if (Model.Docked)
         {
             Root.Visibility = Visibility.Collapsed;
+            WidgetScroll.Visibility = Visibility.Collapsed;
             DockRoot.Visibility = Visibility.Visible;
         }
 
@@ -96,6 +115,7 @@ public sealed partial class MainWindow : Window
             desktop.Deactivated -= OnShellDeactivated;
             CompositionTarget.Rendering -= Tick;
             desktop.Dispose();
+            hotkey.Dispose();
             appearance?.Dispose();
             backdropController?.Dispose();
             Model.Dispose();
@@ -114,10 +134,98 @@ public sealed partial class MainWindow : Window
 
     void Undo_Click(object sender, RoutedEventArgs e) => Model.Undo();
 
+    void List_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is TaskRow { IsEditing: false } task)
+            Model.ToggleDetails(task);
+    }
+
+    void Title_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.BeginTitleEdit(task);
+        e.Handled = true;
+    }
+
+    void Effort_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.CycleEffort(task);
+    }
+
+    void Priority_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TaskRow task)
+            Model.CyclePriority(task);
+    }
+
+    void Edit_Loaded(object sender, RoutedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        box.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
+        {
+            if (box.Visibility != Visibility.Visible || box.DataContext is not TaskRow task)
+                return;
+            box.Text = task.Title;
+            box.DispatcherQueue.TryEnqueue(() =>
+            {
+                box.Focus(FocusState.Programmatic);
+                box.SelectAll();
+            });
+        });
+        box.KeyDown += (_, args) =>
+        {
+            if (box.DataContext is not TaskRow task)
+                return;
+            if (args.Key == VirtualKey.Enter)
+            {
+                Model.EditTitle(task, box.Text);
+                args.Handled = true;
+            }
+            else if (args.Key == VirtualKey.Escape)
+            {
+                Model.CancelTitleEdit(task);
+                args.Handled = true;
+            }
+        };
+        box.LostFocus += (_, _) =>
+        {
+            if (box.DataContext is TaskRow { IsEditing: true } task)
+                Model.EditTitle(task, box.Text);
+        };
+    }
+
+    void Details_Loaded(object sender, RoutedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        if (box.DataContext is TaskRow task)
+            box.Text = task.Details;
+        box.LostFocus += (_, _) => CommitDetails(box);
+        box.KeyDown += (_, args) =>
+        {
+            if (args.Key != VirtualKey.Enter)
+                return;
+            var shift = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+            if (shift)
+                return;
+            CommitDetails(box);
+            args.Handled = true;
+        };
+    }
+
+    void CommitDetails(TextBox box)
+    {
+        if (box.DataContext is TaskRow { IsExpanded: true } task)
+            Model.EditDetails(task, box.Text);
+    }
+
     public void Raise() => Model.Raise();
 
     void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (List.XamlRoot is not null && FocusManager.GetFocusedElement(List.XamlRoot) is TextBox)
+            return;
+
         var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
         if (ctrl && List.SelectedIndex >= 0)
         {
@@ -146,6 +254,14 @@ public sealed partial class MainWindow : Window
             case VirtualKey.Space:
                 Model.TickSelected();
                 break;
+            case VirtualKey.Enter:
+                Model.ExpandSelected();
+                break;
+            case VirtualKey.E:
+                if (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down))
+                    return;
+                Model.EditSelectedTitle();
+                break;
             case VirtualKey.Delete:
                 Model.DeleteSelected();
                 break;
@@ -161,6 +277,12 @@ public sealed partial class MainWindow : Window
         if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskRow task)
             return;
 
+        var edit = new MenuFlyoutItem
+        {
+            Text = "Edit title",
+            Icon = new FontIcon { Glyph = "\uE70F" },
+        };
+        edit.Click += (_, _) => Model.BeginTitleEdit(task);
         var item = new MenuFlyoutItem
         {
             Text = "Delete",
@@ -168,6 +290,8 @@ public sealed partial class MainWindow : Window
         };
         item.Click += (_, _) => Model.Delete(task);
         var menu = new MenuFlyout();
+        menu.Items.Add(edit);
+        menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(item);
         menu.ShowAt(e.OriginalSource as FrameworkElement, e.GetPosition(e.OriginalSource as UIElement));
         e.Handled = true;
@@ -222,7 +346,7 @@ public sealed partial class MainWindow : Window
 
     void List_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
     {
-        dragFrom = e.Items.Count == 1 && e.Items[0] is TaskRow row ? Model.Tasks.IndexOf(row) : -1;
+        dragFrom = e.Items.Count == 1 && e.Items[0] is TaskRow row && !row.NotTask ? Model.Tasks.IndexOf(row) : -1;
         if (dragFrom < 0)
             e.Cancel = true;
     }
@@ -239,6 +363,42 @@ public sealed partial class MainWindow : Window
         var from = dragFrom;
         dragFrom = -1;
         Model.AcceptReorder(from, to);
+    }
+
+    void Header_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (driving || headerDrag || arranging)
+            return;
+        if (!e.GetCurrentPoint(HeaderStrip).Properties.IsLeftButtonPressed)
+            return;
+        if (e.OriginalSource is DependencyObject source && IsOnButton(source))
+            return;
+
+        headerDrag = true;
+        try
+        {
+            desktop.DragByCaption();
+        }
+        finally
+        {
+            headerDrag = false;
+        }
+
+        FinishHeaderDrag();
+        e.Handled = true;
+    }
+
+    static bool IsOnButton(DependencyObject source)
+    {
+        while (true)
+        {
+            if (source is Button)
+                return true;
+            var parent = VisualTreeHelper.GetParent(source);
+            if (parent is null)
+                return false;
+            source = parent;
+        }
     }
 
     void Collapse_Click(object sender, RoutedEventArgs e)
@@ -310,12 +470,18 @@ public sealed partial class MainWindow : Window
 
     void Host_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == VirtualKey.Escape && Model.Escape())
-            e.Handled = true;
+        if (e.Key != VirtualKey.Escape)
+            return;
+
+        if (!Model.Escape())
+            Model.Leave();
+        e.Handled = true;
     }
 
     void OnRaised()
     {
+        if (!driving)
+            Reanchor();
         desktop.BringToFront(Model.FullScreenApp);
         if (Model.Docked && !driving)
             PlayToWidget();
@@ -326,6 +492,8 @@ public sealed partial class MainWindow : Window
     {
         if (!placed)
             return;
+        if (!driving)
+            Reanchor();
         desktop.BringToFront(Model.FullScreenApp);
         Capture.Focus(FocusState.Programmatic);
     }
@@ -339,6 +507,7 @@ public sealed partial class MainWindow : Window
             if (Model.FullScreenApp)
             {
                 Root.Visibility = Visibility.Collapsed;
+                WidgetScroll.Visibility = Visibility.Collapsed;
                 DockRoot.Visibility = Visibility.Visible;
                 current = DockHeightDip;
                 Place(DockClient());
@@ -381,28 +550,66 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnShellDeactivated()
-    {
-        if (Model.Raised)
-            Model.NoteDeactivated();
-        else if (!Model.Docked)
-            desktop.PinToBottom();
-    }
+    void OnShellDeactivated() => Model.Deactivate(ForegroundProcess.FileName());
 
     void Reanchor()
     {
-        if (!placed || Host.XamlRoot is null)
+        if (!placed || Host.XamlRoot is null || headerDrag || arranging)
             return;
 
-        if (Model.Docked && !Model.Raised)
-            Place(DockClient());
-        else
-            Place(WidgetClient(current > 0 ? current : widgetHeight));
+        arranging = true;
+        try
+        {
+            RefreshMonitors();
+            if (Model.Docked && !Model.Raised)
+                Place(DockClient());
+            else
+                Place(WidgetClient(current > 0 ? current : widgetHeight));
 
-        desktop.ReapplyZOrder();
+            desktop.ReapplyZOrder();
+            desktop.CheckFullScreen();
+        }
+        finally
+        {
+            arranging = false;
+        }
+    }
+
+    void OnDpi(DesktopLayer.DpiNotice notice)
+    {
+        if (!placed || Host.XamlRoot is null || sizingDpi)
+            return;
+
+        sizingDpi = true;
+        try
+        {
+            if (headerDrag)
+            {
+                int frameW = AppWindow.Size.Width - AppWindow.ClientSize.Width;
+                int frameH = AppWindow.Size.Height - AppWindow.ClientSize.Height;
+                Place(new RectInt32(
+                    AppWindow.Position.X,
+                    AppWindow.Position.Y,
+                    Math.Max(1, notice.OuterWidth - frameW),
+                    Math.Max(1, notice.OuterHeight - frameH)));
+                return;
+            }
+
+            Reanchor();
+        }
+        finally
+        {
+            sizingDpi = false;
+        }
     }
 
     void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
+
+    void ClearDraft_Click(object sender, RoutedEventArgs e)
+    {
+        Model.ClearDraft();
+        Capture.Focus(FocusState.Programmatic);
+    }
 
     // The installer replaces this process. A separate command waits, installs silently, then starts Task Widget again.
     void FinishUpdate()
@@ -423,6 +630,21 @@ public sealed partial class MainWindow : Window
 
     void Capture_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        if (ctrl && e.Key == VirtualKey.Z)
+        {
+            Model.Undo();
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == VirtualKey.Y)
+        {
+            Model.Redo();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != VirtualKey.Enter)
             return;
 
@@ -437,7 +659,7 @@ public sealed partial class MainWindow : Window
 
     void OnHostSize()
     {
-        if (Host.XamlRoot is null)
+        if (Host.XamlRoot is null || arranging || headerDrag || arriving || capping)
             return;
         if (!Model.Docked && Root.ActualHeight <= 0)
             return;
@@ -446,31 +668,44 @@ public sealed partial class MainWindow : Window
         {
             placed = true;
             ApplyLook();
-            if (Model.Docked)
+            arranging = true;
+            try
             {
-                Root.Visibility = Visibility.Collapsed;
-                DockRoot.Visibility = Visibility.Visible;
-                current = DockHeightDip;
-                Place(DockClient());
-                desktop.ApplyDock(yieldFocus: true);
-                desktop.CheckFullScreen();
-                if (!Model.ShowDock)
-                    desktop.Hide();
-                return;
+                RefreshMonitors();
+                if (Model.Docked)
+                {
+                    Root.Visibility = Visibility.Collapsed;
+                    WidgetScroll.Visibility = Visibility.Collapsed;
+                    DockRoot.Visibility = Visibility.Visible;
+                    current = DockHeightDip;
+                    Place(DockClient());
+                    desktop.ApplyDock(yieldFocus: true);
+                    desktop.CheckFullScreen();
+                    if (!Model.ShowDock)
+                        desktop.Hide();
+                }
+                else
+                {
+                    current = Capped(Root.ActualHeight);
+                    widgetHeight = current;
+                    Place(WidgetClient(current));
+                    desktop.PinToBottom();
+                    desktop.CheckFullScreen();
+                }
+            }
+            finally
+            {
+                arranging = false;
             }
 
-            current = Root.ActualHeight;
-            widgetHeight = current;
-            Place(WidgetClient(current));
-            desktop.PinToBottom();
-            desktop.CheckFullScreen();
             return;
         }
 
         if (driving || Model.Docked)
             return;
 
-        var next = Root.ActualHeight;
+        RefreshPlacementLimits();
+        var next = Capped(Root.ActualHeight);
         if (Math.Abs(next - target) < 0.5 && rendering && !slide)
             return;
         if (Math.Abs(next - current) < 0.5)
@@ -479,6 +714,7 @@ public sealed partial class MainWindow : Window
         from = current;
         target = next;
         slide = false;
+        arriving = false;
         animDone = null;
         animMs = next > current ? Ms("WidgetGrowMs") : Ms("WidgetShrinkMs");
         animStart = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -492,7 +728,8 @@ public sealed partial class MainWindow : Window
             return;
 
         driving = true;
-        widgetHeight = Root.ActualHeight > 0 ? Root.ActualHeight : current;
+        RefreshMonitors();
+        widgetHeight = Root.ActualHeight > 0 ? Capped(Root.ActualHeight) : current;
         AnimateContent(Root, show: false, Ms("WidgetContentOutMs"));
         AnimateRect(WidgetClient(widgetHeight), DockClient(), Ms("WidgetRollUpMs"), DockHeightDip, FinishDock);
     }
@@ -503,6 +740,7 @@ public sealed partial class MainWindow : Window
         ElementCompositionPreview.SetIsTranslationEnabled(DockRoot, true);
         visual.Opacity = 0;
         Root.Visibility = Visibility.Collapsed;
+        WidgetScroll.Visibility = Visibility.Collapsed;
         DockRoot.Visibility = Visibility.Visible;
         AnimateContent(DockRoot, show: true, Ms("DockInMs"));
         SpringIn(DockRoot);
@@ -518,13 +756,15 @@ public sealed partial class MainWindow : Window
             return;
 
         driving = true;
+        RefreshMonitors();
         desktop.PrepareWidgetChrome();
         Activate();
         AnimateContent(DockRoot, show: false, Ms("DockOutMs"));
+        WidgetScroll.Visibility = Visibility.Visible;
         Root.Visibility = Visibility.Visible;
         Root.Measure(new Size(Root.Width, double.PositiveInfinity));
         Root.UpdateLayout();
-        var height = Math.Max(Root.ActualHeight, Root.DesiredSize.Height);
+        var height = Capped(Math.Max(Root.ActualHeight, Root.DesiredSize.Height));
         if (height <= 0)
             height = widgetHeight;
         AnimateContent(Root, show: true, Ms("WidgetContentInMs"));
@@ -542,7 +782,7 @@ public sealed partial class MainWindow : Window
     void Tick(object? sender, object e)
     {
         var p = Math.Min(1, System.Diagnostics.Stopwatch.GetElapsedTime(animStart).TotalMilliseconds / animMs);
-        var eased = 1 - Math.Pow(1 - p, 3);
+        var eased = arriving ? Arrive(p) : 1 - Math.Pow(1 - p, 3);
         if (slide)
             Place(p >= 1 ? toRect : Lerp(fromRect, toRect, eased));
         else
@@ -562,14 +802,25 @@ public sealed partial class MainWindow : Window
             target = landHeight;
         }
 
+        arriving = false;
         var done = animDone;
         animDone = null;
         done?.Invoke();
     }
 
-    void AnimateRect(RectInt32 fromClient, RectInt32 toClient, double ms, double endHeightDip, Action done)
+    void AnimateRect(RectInt32 fromClient, RectInt32 toClient, double ms, double endHeightDip, Action done, bool arrive = false)
     {
         slide = true;
+        arriving = arrive;
+        if (arrive)
+        {
+            var resources = Application.Current.Resources;
+            snapX1 = (double)resources["EaseOutX1"];
+            snapY1 = (double)resources["EaseOutY1"];
+            snapX2 = (double)resources["EaseOutX2"];
+            snapY2 = (double)resources["EaseOutY2"];
+        }
+
         fromRect = fromClient;
         toRect = toClient;
         landHeight = endHeightDip;
@@ -635,12 +886,149 @@ public sealed partial class MainWindow : Window
 
     double Scale => Host.XamlRoot.RasterizationScale;
 
+    void FinishHeaderDrag()
+    {
+        if (!placed || Host.XamlRoot is null)
+            return;
+
+        RefreshMonitors();
+        int x = AppWindow.Position.X + AppWindow.Size.Width / 2;
+        int y = AppWindow.Position.Y + AppWindow.Size.Height / 2;
+        var id = MonitorUnder(x, y);
+        if (id.Length > 0)
+            Model.DropOnMonitor(id);
+        SnapToAnchor();
+    }
+
+    void SnapToAnchor()
+    {
+        var height = current > 0 ? current : widgetHeight;
+        if (height <= 0)
+            height = Capped(Root.ActualHeight);
+        var target = WidgetClient(height);
+        var fromClient = new RectInt32(
+            AppWindow.Position.X,
+            AppWindow.Position.Y,
+            AppWindow.ClientSize.Width,
+            AppWindow.ClientSize.Height);
+        if (Near(fromClient, target))
+        {
+            Place(target);
+            desktop.ReapplyZOrder();
+            desktop.CheckFullScreen();
+            return;
+        }
+
+        // The Widget arrives on its anchor with Motion.xaml's EaseOut, over the window's grow time.
+        AnimateRect(fromClient, target, Ms("WidgetGrowMs"), height, () =>
+        {
+            desktop.ReapplyZOrder();
+            desktop.CheckFullScreen();
+        }, arrive: true);
+    }
+
+    void RefreshMonitors()
+    {
+        screens.Clear();
+        screens.AddRange(MonitorCatalog.Read());
+        Model.NoteMonitors(screens.Select(screen => new TaskWidget.Core.ConnectedMonitor(screen.DeviceId, screen.Primary)).ToArray());
+        RefreshPlacementLimits();
+    }
+
+    void RefreshPlacementLimits()
+    {
+        if (capping)
+            return;
+
+        capping = true;
+        try
+        {
+            var monitor = Placement();
+            if (monitor is null || Host.XamlRoot is null)
+            {
+                WidgetScroll.MaxHeight = double.PositiveInfinity;
+                return;
+            }
+
+            double scale = monitor.Dpi > 0 ? monitor.Dpi / 96.0 : Scale;
+            int margin = (int)Math.Ceiling(MarginDip * scale);
+            int capPx = monitor.Work.Height - margin;
+            double capDip = capPx / scale;
+            WidgetScroll.MaxHeight = capDip < 120 ? 120 : capDip;
+        }
+        finally
+        {
+            capping = false;
+        }
+    }
+
+    double Capped(double heightDip)
+    {
+        var max = WidgetScroll.MaxHeight;
+        if (double.IsNaN(max) || double.IsInfinity(max) || max <= 0)
+            return heightDip;
+        return Math.Min(heightDip, max);
+    }
+
+    MonitorSnap? Placement()
+    {
+        if (screens.Count == 0)
+            return null;
+
+        var id = Model.PlacementMonitorId;
+        foreach (var screen in screens)
+        {
+            if (screen.DeviceId == id)
+                return screen;
+        }
+
+        foreach (var screen in screens)
+        {
+            if (screen.Primary)
+                return screen;
+        }
+
+        return screens[0];
+    }
+
+    string MonitorUnder(int x, int y)
+    {
+        MonitorSnap? nearest = null;
+        long best = long.MaxValue;
+        foreach (var screen in screens)
+        {
+            if (x >= screen.Bounds.X && x < screen.Bounds.X + screen.Bounds.Width
+                && y >= screen.Bounds.Y && y < screen.Bounds.Y + screen.Bounds.Height)
+                return screen.DeviceId;
+
+            long dx = screen.Bounds.X + screen.Bounds.Width / 2 - x;
+            long dy = screen.Bounds.Y + screen.Bounds.Height / 2 - y;
+            long dist = dx * dx + dy * dy;
+            if (dist < best)
+            {
+                best = dist;
+                nearest = screen;
+            }
+        }
+
+        return nearest?.DeviceId ?? "";
+    }
+
+    (RectInt32 Area, double Scale) Anchor()
+    {
+        var monitor = Placement();
+        if (monitor is { Dpi: > 0 })
+            return (monitor.Work, monitor.Dpi / 96.0);
+
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        return (area, Scale);
+    }
+
     RectInt32 WidgetClient(double heightDip)
     {
-        var scale = Scale;
-        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        var (area, scale) = Anchor();
         int width = (int)Math.Ceiling(Root.Width * scale);
-        int height = (int)Math.Ceiling(heightDip * scale);
+        int height = (int)Math.Ceiling(Capped(heightDip) * scale);
         int x = area.X + area.Width - width - (int)Math.Ceiling(MarginDip * scale);
         int y = area.Y + (int)Math.Ceiling(MarginDip * scale);
         return new RectInt32(x, y, width, height);
@@ -648,13 +1036,53 @@ public sealed partial class MainWindow : Window
 
     RectInt32 DockClient()
     {
-        var scale = Scale;
-        var area = DisplayArea.Primary.WorkArea;
+        var (area, scale) = Anchor();
         int width = (int)Math.Ceiling(DockWidthDip * scale);
         int height = (int)Math.Ceiling(DockHeightDip * scale);
         int x = area.X + (area.Width - width) / 2;
         int y = area.Y + (int)Math.Ceiling(DockTopDip * scale);
         return new RectInt32(x, y, width, height);
+    }
+
+    static bool Near(RectInt32 a, RectInt32 b) =>
+        Math.Abs(a.X - b.X) <= 1 && Math.Abs(a.Y - b.Y) <= 1
+        && Math.Abs(a.Width - b.Width) <= 1 && Math.Abs(a.Height - b.Height) <= 1;
+
+    double Arrive(double x) => EaseOutY(x, snapX1, snapY1, snapX2, snapY2);
+
+    static double EaseOutY(double x, double x1, double y1, double x2, double y2)
+    {
+        if (x <= 0)
+            return 0;
+        if (x >= 1)
+            return 1;
+
+        double t = x;
+        for (var i = 0; i < 8; i++)
+        {
+            var slope = BezierSlope(t, x1, x2);
+            if (Math.Abs(slope) < 1e-6)
+                break;
+            t -= (Bezier(t, x1, x2) - x) / slope;
+            if (t < 0)
+                t = 0;
+            else if (t > 1)
+                t = 1;
+        }
+
+        return Bezier(t, y1, y2);
+    }
+
+    static double Bezier(double t, double c1, double c2)
+    {
+        double u = 1 - t;
+        return 3 * u * u * t * c1 + 3 * u * t * t * c2 + t * t * t;
+    }
+
+    static double BezierSlope(double t, double c1, double c2)
+    {
+        double u = 1 - t;
+        return 3 * u * u * c1 + 6 * u * t * (c2 - c1) + 3 * t * t * (1 - c2);
     }
 
     void Place(RectInt32 client)

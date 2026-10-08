@@ -63,6 +63,27 @@
                 </StackPanel>
             </Border>
 
+            <TextBlock Text="Hotkey" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="8">
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Open and add a Capture" FontSize="13" />
+                            <TextBlock Text="Tap to open, tap again to add" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
+                        </StackPanel>
+                        <Button x:Name="RecordButton" HorizontalAlignment="Right" Click="Record_Click" Padding="8,4,8,5" MinWidth="120">
+                            <Grid>
+                                <TextBlock Text="{x:Bind Model.Hotkey, Mode=OneWay}" FontSize="12.5" FontWeight="SemiBold"
+                                           Visibility="{x:Bind local:Row.Unless(Recording), Mode=OneWay}" />
+                                <TextBlock Text="Press keys…" FontSize="12.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                           Visibility="{x:Bind local:Row.When(Recording), Mode=OneWay}" />
+                            </Grid>
+                        </Button>
+                    </Grid>
+                    <TextBlock Style="{StaticResource Caption}" Text="{x:Bind Model.LanguageToggleWarning, Mode=OneTime}" />
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="Appearance" Style="{StaticResource Section}" />
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="10">

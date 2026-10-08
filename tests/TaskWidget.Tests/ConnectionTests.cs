@@ -345,12 +345,18 @@ public sealed class ConnectionTests
         using var world = new ConnectionWorld();
         world.Http.FailResponse = true;
         world.Model.UpdateDraft("buy milk");
-        await world.Model.CommitCapture();
+        var committing = world.Model.CommitCapture();
+        for (var i = 0; i < 5 && !committing.IsCompleted; i++)
+        {
+            await Task.Delay(30, TestContext.Current.CancellationToken);
+            world.Clock.Advance(TimeSpan.FromSeconds(2));
+        }
 
+        await committing;
         var row = Assert.Single(world.Model.Tasks);
-        Assert.True(row.IsPending);
         Assert.False(row.IsWaiting);
-        Assert.Equal("", row.Reason);
+        Assert.True(row.IsFailed);
+        Assert.Equal("Couldn't reach ChatGPT", row.Reason);
         Assert.True(world.Model.HasConnection);
         Assert.Equal(WidgetBanner.None, world.Model.Banner);
     }

@@ -448,6 +448,10 @@ sealed class InterpretHttp : HttpMessageHandler
 
     public string Payload { get; set; } = "";
     public string ModelsBody { get; set; } = """{"models":[{"slug":"gpt-5.6-sol","priority":1}]}""";
+    public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
+    public string FailureBody { get; set; } = "";
+    public int NetworkFaults { get; set; }
+    public bool WasCancelled { get; private set; }
     public int ModelsCalls { get; private set; }
     public List<string> Bodies { get; } = [];
     public List<InterpretCall> Calls { get; } = [];
@@ -504,9 +508,38 @@ sealed class InterpretHttp : HttpMessageHandler
             request.RequestUri?.GetLeftPart(UriPartial.Path) ?? "",
             body,
             request.Headers.Authorization?.ToString()));
+        if (NetworkFaults > 0)
+        {
+            NetworkFaults--;
+            throw new HttpRequestException("The network failed.");
+        }
+
         var done = new TaskCompletionSource<string>();
         held.Add(new Held(body, done));
-        var payload = await done.Task;
+        using var registration = cancellationToken.Register(() =>
+        {
+            WasCancelled = true;
+            done.TrySetCanceled(cancellationToken);
+        });
+        string payload;
+        try
+        {
+            payload = await done.Task;
+        }
+        catch (OperationCanceledException)
+        {
+            held.RemoveAll(item => item.Done == done);
+            throw;
+        }
+
+        if (StatusCode != HttpStatusCode.OK)
+        {
+            return new HttpResponseMessage(StatusCode)
+            {
+                Content = new StringContent(FailureBody, Encoding.UTF8, "application/json"),
+            };
+        }
+
         return new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(payload, Encoding.UTF8, "text/event-stream"),

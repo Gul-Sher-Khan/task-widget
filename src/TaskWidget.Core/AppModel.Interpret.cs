@@ -7,11 +7,15 @@ namespace TaskWidget.Core;
 public sealed partial class AppModel
 {
     const string ResponsesEndpoint = "https://api.openai.com/v1/responses";
+    static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(30);
+    static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
     static readonly string[] PreferredModels = ["gpt-5.6-sol", "gpt-reserve", "gpt-5.6-terra", "gpt-6-astra"];
+    readonly CancellationTokenSource captureCalls = new();
 
     async Task Interpret(string text)
     {
         var id = Guid.NewGuid().ToString("D");
+        var at = clock.Now;
         var record = new CaptureRecord { Id = id, Text = text, State = "pending" };
         captures.Add(record);
         var pending = new TaskRow(text, Priority.Medium, Effort.Short, "", id, pending: true);
@@ -19,7 +23,7 @@ public sealed partial class AppModel
         Tasks.Insert(0, pending);
         CaptureText = "";
         Flush();
-        await Run(record, pending);
+        await RunCapture(pending, record, text, at);
     }
 
     void Hold(string text)
@@ -31,7 +35,7 @@ public sealed partial class AppModel
         row.CreatedAt = clock.Now;
         Tasks.Insert(0, row);
         CaptureText = "";
-        Wait(record, row, record.Cause);
+        MarkWaiting(record, row, record.Cause);
     }
 
     void ReleaseWaiting()
@@ -46,11 +50,15 @@ public sealed partial class AppModel
                 continue;
             if (!HasConnection || !Online || httpClient is null)
             {
-                Wait(record, row, WaitingCause());
+                MarkWaiting(record, row, WaitingCause());
                 continue;
             }
 
-            _ = Run(record, row);
+            record.State = "pending";
+            record.Cause = "";
+            row.BeginInterpret();
+            var at = row.CreatedAt == default ? clock.Now : row.CreatedAt;
+            _ = RunCapture(row, record, record.Text, at);
         }
     }
 
@@ -58,50 +66,76 @@ public sealed partial class AppModel
         ? (settingsFile.WelcomeRetired ? "signed-out" : "no-connection")
         : "offline";
 
-    async Task Run(CaptureRecord record, TaskRow row)
+    void MarkWaiting(CaptureRecord record, TaskRow row, string cause)
     {
-        var at = row.CreatedAt == default ? clock.Now : row.CreatedAt;
-        row.IsWaiting = false;
-        row.LightsDot = false;
-        row.Reason = "";
-        row.IsPending = true;
-        row.PendingText = "Interpreting…";
-        record.State = "pending";
-        record.Cause = "";
+        record.State = "waiting";
+        record.Cause = cause;
+        row.IsPending = false;
+        row.PendingText = "";
+        row.IsFailed = false;
+        row.IsWaiting = true;
+        row.Reason = WaitingReason(cause);
+        row.LightsDot = cause != "offline";
         OnPropertyChanged(nameof(Attention));
+        OnPropertyChanged(nameof(OpenTaskCount));
+        OnPropertyChanged(nameof(OpenHighCount));
+        OnPropertyChanged(nameof(OpenMediumCount));
+        OnPropertyChanged(nameof(OpenLowCount));
         Flush();
+    }
+
+    static string WaitingReason(string cause) => cause switch
+    {
+        "offline" => "Waiting for connection",
+        "no-connection" => "Connect your ChatGPT account",
+        _ => "Signed out",
+    };
+
+    async Task RunCapture(TaskRow row, CaptureRecord record, string text, DateTimeOffset at)
+    {
         BeginProcessing();
         try
         {
-            List<CaptureContract.ParsedTask>? parsed;
+            CaptureOutcome outcome;
             try
             {
-                parsed = await RequestTasks(record.Text);
+                outcome = await RequestWithRetry(text, captureCalls.Token);
             }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or JsonException or TaskCanceledException)
+            catch (OperationCanceledException)
             {
                 return;
             }
 
-            if (parsed is null || !Tasks.Contains(row))
+            if (!Tasks.Contains(row))
+                return;
+
+            if (!HasConnection || !Online)
             {
-                if (parsed is null && Tasks.Contains(row) && !HasConnection)
-                    Wait(record, row, "signed-out");
-                else if (parsed is null && Tasks.Contains(row) && !Online)
-                    Wait(record, row, "offline");
+                MarkWaiting(record, row, WaitingCause());
                 return;
             }
 
-            Tasks.Remove(row);
-            record.State = "interpreted";
-            record.Interpreted = record.Text;
-            for (var i = 0; i < parsed.Count; i++)
+            if (outcome.Tasks is not null)
             {
-                var task = parsed[i];
-                Place(new TaskRow(task.Title, task.Priority, task.Effort, task.Details, record.Id), at, i);
+                Tasks.Remove(row);
+                record.State = "interpreted";
+                record.Interpreted = text;
+                record.Cause = "";
+                for (var i = 0; i < outcome.Tasks.Count; i++)
+                {
+                    var task = outcome.Tasks[i];
+                    Place(new TaskRow(task.Title, task.Priority, task.Effort, task.Details, record.Id), at, i);
+                }
+
+                MarkDirty();
+                NoteAttention();
+                return;
             }
 
-            MarkDirty();
+            if (outcome.Kind is CaptureKind.None)
+                return;
+
+            ApplyFailure(row, record, outcome.Kind);
         }
         finally
         {
@@ -123,30 +157,6 @@ public sealed partial class AppModel
             IsProcessing = false;
     }
 
-    void Wait(CaptureRecord record, TaskRow row, string cause)
-    {
-        record.State = "waiting";
-        record.Cause = cause;
-        row.IsPending = false;
-        row.PendingText = "";
-        row.IsWaiting = true;
-        row.Reason = WaitingReason(cause);
-        row.LightsDot = cause != "offline";
-        OnPropertyChanged(nameof(Attention));
-        OnPropertyChanged(nameof(OpenTaskCount));
-        OnPropertyChanged(nameof(OpenHighCount));
-        OnPropertyChanged(nameof(OpenMediumCount));
-        OnPropertyChanged(nameof(OpenLowCount));
-        Flush();
-    }
-
-    static string WaitingReason(string cause) => cause switch
-    {
-        "offline" => "Waiting for connection",
-        "no-connection" => "Connect your ChatGPT account",
-        _ => "Signed out",
-    };
-
     void Flush()
     {
         MarkDirty();
@@ -155,22 +165,335 @@ public sealed partial class AppModel
         WriteIfDirty();
     }
 
-    async Task<List<CaptureContract.ParsedTask>?> RequestTasks(string text)
+    async Task<CaptureOutcome> RequestWithRetry(string text, CancellationToken cancel)
     {
-        await EnsureModels();
-        if (settingsFile.Models.Count == 0)
-            return null;
+        var first = await Attempt(text, cancel);
+        if (first.Tasks is not null || !first.Retry)
+            return first;
 
-        using var response = await SendAuthorized(() => new HttpRequestMessage(HttpMethod.Post, ResponsesEndpoint)
+        await Wait(RetryDelay, cancel);
+        return await Attempt(text, cancel);
+    }
+
+    async Task<CaptureOutcome> Attempt(string text, CancellationToken cancel)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        var timer = clock.Schedule(AttemptTimeout, () => timeout.Cancel());
+        try
         {
-            Content = new StringContent(RequestBody(text), Encoding.UTF8, "application/json"),
-        });
-        if (response is null || !response.IsSuccessStatusCode)
-            return null;
+            await EnsureModels(timeout.Token);
+            if (!HasConnection)
+                return CaptureOutcome.Failed(CaptureKind.None, retry: false);
+            if (settingsFile.Models.Count == 0)
+                return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
 
-        var body = await response.Content.ReadAsStringAsync();
+            using var response = await SendAuthorized(
+                () => new HttpRequestMessage(HttpMethod.Post, ResponsesEndpoint)
+                {
+                    Content = new StringContent(RequestBody(text), Encoding.UTF8, "application/json"),
+                },
+                timeout.Token);
+            if (response is null)
+            {
+                if (!HasConnection)
+                    return CaptureOutcome.Failed(CaptureKind.None, retry: false);
+                return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
+            }
+
+            var body = await response.Content.ReadAsStringAsync(timeout.Token);
+            return Classify(response.StatusCode, body);
+        }
+        catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
+        {
+            return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
+        }
+        finally
+        {
+            timer.Dispose();
+        }
+    }
+
+    static CaptureOutcome Classify(System.Net.HttpStatusCode status, string body)
+    {
+        var code = (int)status;
+        if (code == 429)
+            return CaptureOutcome.Failed(CaptureKind.RateLimited, retry: false);
+        if (code == 403 && body.Contains("subscription_sharing_user_not_eligible", StringComparison.Ordinal))
+            return CaptureOutcome.Failed(CaptureKind.Plan, retry: false);
+        if (code >= 500)
+            return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
+        if (code >= 400)
+            return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: false);
+        if (ResponseFailed(body))
+            return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
+
         var parsed = CaptureContract.Parse(CaptureContract.OutputText(body));
-        return parsed.Ok && parsed.Tasks.Count > 0 ? parsed.Tasks : null;
+        if (!parsed.Ok)
+            return CaptureOutcome.Failed(CaptureKind.BadOutput, retry: true);
+        if (parsed.Tasks.Count == 0)
+            return CaptureOutcome.Failed(CaptureKind.ZeroTasks, retry: false);
+        return CaptureOutcome.Parsed(parsed.Tasks);
+    }
+
+    static bool ResponseFailed(string body)
+    {
+        foreach (var line in body.Split('\n'))
+        {
+            var trimmed = line.TrimEnd('\r').TrimStart();
+            if (!trimmed.StartsWith("data:", StringComparison.Ordinal))
+                continue;
+
+            var data = trimmed[5..].TrimStart();
+            if (data == "[DONE]")
+                continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(data);
+                if (doc.RootElement.TryGetProperty("type", out var type) && type.GetString() == "response.failed")
+                    return true;
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return false;
+    }
+
+    async Task Wait(TimeSpan delay, CancellationToken cancel)
+    {
+        var done = new TaskCompletionSource();
+        var timer = clock.Schedule(delay, () => done.TrySetResult());
+        await using var registration = cancel.Register(() =>
+        {
+            timer.Dispose();
+            done.TrySetCanceled(cancel);
+        });
+        try
+        {
+            await done.Task;
+        }
+        finally
+        {
+            timer.Dispose();
+        }
+    }
+
+    void ApplyFailure(TaskRow row, CaptureRecord record, CaptureKind kind)
+    {
+        var (reason, tip, makeTaskFirst) = FailureCopy(kind);
+        row.Fail(reason, tip, makeTaskFirst);
+        record.State = "failed";
+        record.Cause = CauseName(kind);
+        Flush();
+        NoteAttention();
+    }
+
+    static (string Reason, string Tip, bool MakeTaskFirst) FailureCopy(CaptureKind kind) => kind switch
+    {
+        CaptureKind.RateLimited => (
+            "Rate-limited by ChatGPT",
+            "ChatGPT returned 429 Too Many Requests. Try again in a minute.",
+            false),
+        CaptureKind.BadOutput => (
+            "Couldn't understand the reply",
+            "The reply didn't match the Task format, after one retry.",
+            false),
+        CaptureKind.ZeroTasks => (
+            "No task found in this",
+            "ChatGPT found nothing to do in this Capture.",
+            true),
+        CaptureKind.Plan => (
+            "Your ChatGPT plan can't be used here",
+            "ChatGPT returned 403: this plan isn't eligible. Go, Plus or Pro works.",
+            false),
+        _ => (
+            "Couldn't reach ChatGPT",
+            "No reply within 30 seconds, after one retry.",
+            false),
+    };
+
+    static string CauseName(CaptureKind kind) => kind switch
+    {
+        CaptureKind.RateLimited => "rate-limited",
+        CaptureKind.BadOutput => "bad-output",
+        CaptureKind.ZeroTasks => "zero-tasks",
+        CaptureKind.Plan => "plan",
+        _ => "unreachable",
+    };
+
+    static CaptureKind ParseCause(string cause) => cause switch
+    {
+        "rate-limited" => CaptureKind.RateLimited,
+        "bad-output" => CaptureKind.BadOutput,
+        "zero-tasks" => CaptureKind.ZeroTasks,
+        "plan" => CaptureKind.Plan,
+        _ => CaptureKind.Unreachable,
+    };
+
+    public Task Retry(TaskRow row) => Rerun(row, row.Title);
+
+    public void EditCapture(TaskRow row)
+    {
+        if (row.IsFailed)
+            row.BeginEdit();
+    }
+
+    public Task SubmitCapture(TaskRow row, string text)
+    {
+        text = text.Replace("\r\n", "\n").Trim();
+        if (!row.IsEditingCapture || text.Length == 0)
+            return Task.CompletedTask;
+
+        row.Title = text;
+        return Rerun(row, text);
+    }
+
+    public void CancelCaptureEdit(TaskRow row) => row.CancelEdit();
+
+    public void MakeTaskAsIs(TaskRow row)
+    {
+        if (!row.IsFailed && !row.IsEditingCapture)
+            return;
+
+        var record = captures.FirstOrDefault(capture => capture.Id == row.Capture);
+        var index = Tasks.IndexOf(row);
+        if (index < 0)
+            return;
+
+        var title = row.Title.Replace("\r\n", "\n").Split('\n')[0].Trim();
+        if (title.Length == 0)
+            return;
+
+        var cause = record?.Cause ?? CauseOf(row);
+        Tasks.RemoveAt(index);
+        row.CancelEdit();
+        var task = new TaskRow(title, Priority.Medium, Effort.Short, "", row.Capture);
+        var at = clock.Now;
+        Place(task, at, 0);
+        if (record is not null)
+        {
+            record.State = "as-is";
+            record.Cause = "";
+        }
+
+        Flush();
+        NoteAttention();
+        Push(
+            "Task added",
+            () =>
+            {
+                Tasks.Remove(task);
+                if (!Tasks.Contains(row))
+                    Tasks.Insert(Math.Min(index, Tasks.Count), row);
+                if (record is not null)
+                {
+                    record.State = "failed";
+                    record.Cause = cause;
+                }
+
+                Flush();
+                NoteAttention();
+            },
+            () =>
+            {
+                Tasks.Remove(row);
+                if (!Tasks.Contains(task))
+                    Tasks.Insert(IndexFor(task), task);
+                if (record is not null)
+                {
+                    record.State = "as-is";
+                    record.Cause = "";
+                }
+
+                Flush();
+                NoteAttention();
+            },
+            pill: false);
+    }
+
+    public void Discard(TaskRow row)
+    {
+        if (!row.IsFailed && !row.IsEditingCapture)
+            return;
+
+        var record = captures.FirstOrDefault(capture => capture.Id == row.Capture);
+        var index = Tasks.IndexOf(row);
+        if (index < 0)
+            return;
+
+        Tasks.RemoveAt(index);
+        row.CancelEdit();
+        var cause = record?.Cause ?? "";
+        if (record is not null)
+            record.State = "discarded";
+
+        Flush();
+        NoteAttention();
+        Push(
+            "Capture discarded",
+            () =>
+            {
+                if (!Tasks.Contains(row))
+                    Tasks.Insert(Math.Min(index, Tasks.Count), row);
+                if (record is not null)
+                {
+                    record.State = "failed";
+                    record.Cause = cause;
+                }
+
+                Flush();
+                NoteAttention();
+            },
+            () =>
+            {
+                Tasks.Remove(row);
+                if (record is not null)
+                    record.State = "discarded";
+                Flush();
+                NoteAttention();
+            },
+            pill: true);
+    }
+
+    Task Rerun(TaskRow row, string text)
+    {
+        if (httpClient is null)
+            return Task.CompletedTask;
+
+        var record = captures.FirstOrDefault(capture => capture.Id == row.Capture);
+        if (record is null || (!row.IsFailed && !row.IsEditingCapture))
+            return Task.CompletedTask;
+
+        record.Text = text;
+        row.Title = text;
+        row.BeginInterpret();
+        Flush();
+        return RunCapture(row, record, text, clock.Now);
+    }
+
+    static string CauseOf(TaskRow row) => row.Reason switch
+    {
+        "Rate-limited by ChatGPT" => "rate-limited",
+        "Couldn't understand the reply" => "bad-output",
+        "No task found in this" => "zero-tasks",
+        "Your ChatGPT plan can't be used here" => "plan",
+        _ => "unreachable",
+    };
+
+    void NoteAttention() => OnPropertyChanged(nameof(Attention));
+
+    TaskRow FailedRow(CaptureRecord capture)
+    {
+        var row = new TaskRow(capture.Text, Priority.Medium, Effort.Short, "", capture.Id);
+        var (reason, tip, makeTaskFirst) = FailureCopy(ParseCause(capture.Cause));
+        row.Fail(reason, tip, makeTaskFirst);
+        return row;
     }
 
     string RequestBody(string text)
@@ -212,7 +535,27 @@ public sealed partial class AppModel
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    async Task<HttpResponseMessage?> SendAuthorized(Func<HttpRequestMessage> create)
+    async Task EnsureModels(CancellationToken cancel)
+    {
+        if (settingsFile.Models.Count > 0
+            && settingsFile.ModelsCachedAt != default
+            && clock.UtcNow < settingsFile.ModelsCachedAt.AddDays(1))
+            return;
+
+        using var response = await SendAuthorized(
+            () => new HttpRequestMessage(HttpMethod.Get, ModelsEndpoint),
+            cancel);
+        if (response is null || !response.IsSuccessStatusCode)
+            return;
+
+        var models = ReadModels(await response.Content.ReadAsStringAsync(cancel));
+        if (models.Count == 0)
+            return;
+
+        NoteModels(models);
+    }
+
+    async Task<HttpResponseMessage?> SendAuthorized(Func<HttpRequestMessage> create, CancellationToken cancel)
     {
         if (httpClient is null || !await EnsureAccess(force: false))
             return null;
@@ -230,28 +573,8 @@ public sealed partial class AppModel
         async Task<HttpResponseMessage> Send(HttpRequestMessage request)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            return await httpClient.SendAsync(request);
+            return await httpClient.SendAsync(request, cancel);
         }
-    }
-
-    async Task EnsureModels()
-    {
-        if (settingsFile.Models.Count > 0
-            && settingsFile.ModelsCachedAt != default
-            && clock.UtcNow < settingsFile.ModelsCachedAt.AddDays(1))
-            return;
-
-        using var response = await SendAuthorized(() => new HttpRequestMessage(HttpMethod.Get, ModelsEndpoint));
-        if (response is null || !response.IsSuccessStatusCode)
-            return;
-
-        var models = ReadModels(await response.Content.ReadAsStringAsync());
-        if (models.Count == 0)
-            return;
-
-        settingsFile.Models = models;
-        settingsFile.ModelsCachedAt = clock.UtcNow;
-        NoteModels(models);
     }
 
     string ChooseModel()
@@ -272,5 +595,22 @@ public sealed partial class AppModel
         }
 
         return settingsFile.Models.Count == 0 ? "" : settingsFile.Models.MaxBy(model => model.Priority)!.Slug;
+    }
+
+    enum CaptureKind
+    {
+        None,
+        Unreachable,
+        RateLimited,
+        BadOutput,
+        ZeroTasks,
+        Plan,
+    }
+
+    readonly record struct CaptureOutcome(List<CaptureContract.ParsedTask>? Tasks, CaptureKind Kind, bool Retry)
+    {
+        public static CaptureOutcome Parsed(List<CaptureContract.ParsedTask> tasks) => new(tasks, CaptureKind.None, false);
+
+        public static CaptureOutcome Failed(CaptureKind kind, bool retry) => new(null, kind, retry);
     }
 }

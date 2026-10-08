@@ -4,6 +4,7 @@ namespace TaskWidget.Core;
 public sealed class InstanceGate : IDisposable
 {
     public const string DefaultName = "TaskWidget";
+    const int AbandonedGrace = 15;
 
     readonly Mutex? mutex;
     readonly EventWaitHandle? raise;
@@ -35,6 +36,20 @@ public sealed class InstanceGate : IDisposable
         catch (AbandonedMutexException)
         {
             owned = true;
+        }
+
+        // A zero timeout can miss a mutex a dead owner just abandoned, so the
+        // next launch looks blocked. A short wait still loses to a live instance.
+        if (!owned)
+        {
+            try
+            {
+                owned = mutex.WaitOne(AbandonedGrace);
+            }
+            catch (AbandonedMutexException)
+            {
+                owned = true;
+            }
         }
 
         if (!owned)
