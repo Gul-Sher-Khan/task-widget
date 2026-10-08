@@ -34,4 +34,9 @@ public static class Row
     };
 
     public static string CountText(int count) => count.ToString();
+
+    public static Visibility When(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
+
+    // Prototype Prefs.ListMaxHeight: a one-line row is ~37 DIP.
+    public static double ListMaxHeight(int rows) => rows * 37 + 4;
 }

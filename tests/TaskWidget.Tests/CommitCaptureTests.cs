@@ -177,6 +177,10 @@ sealed class ManualClock : IClock
     readonly List<(long Due, Action Callback)> pending = [];
     long now;
 
+    public DateTimeOffset Now { get; private set; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    public void Set(DateTimeOffset time) => Now = time;
+
     public void Schedule(TimeSpan delay, Action callback) =>
         pending.Add((now + (long)delay.TotalMilliseconds, callback));
 
@@ -185,6 +189,7 @@ sealed class ManualClock : IClock
     public void Advance(TimeSpan by)
     {
         now += (long)by.TotalMilliseconds;
+        Now += by;
         var due = pending.Where(item => item.Due <= now).ToArray();
         foreach (var item in due)
             pending.Remove(item);

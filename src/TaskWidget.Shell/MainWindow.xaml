@@ -25,8 +25,9 @@
                     <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenTaskCount), Mode=OneWay}"
                                Foreground="{ThemeResource FaintTextBrush}" FontSize="13" VerticalAlignment="Center" />
                 </StackPanel>
-                <Button Grid.Column="1" Style="{StaticResource Bare}" Width="30" Height="30" Visibility="Collapsed"
-                        ToolTipService.ToolTip="Re-sort by Priority and Effort">
+                <Button Grid.Column="1" Style="{StaticResource Bare}" Width="30" Height="30" Click="Resort_Click"
+                        ToolTipService.ToolTip="Re-sort by Priority and Effort"
+                        Visibility="{x:Bind local:Row.When(Model.HasManualPositions), Mode=OneWay}">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
                 </Button>
                 <Button Grid.Column="2" Style="{StaticResource Bare}" Width="30" Height="30"
@@ -52,8 +53,11 @@
             </Grid>
 
             <ListView x:Name="List" Grid.Row="2" Padding="6,0,6,0"
+                      MaxHeight="{x:Bind local:Row.ListMaxHeight(Model.RowsBeforeScrolling), Mode=OneTime}"
                       ItemsSource="{x:Bind Model.Tasks, Mode=OneWay}"
-                      ItemContainerStyle="{StaticResource PlainRow}">
+                      ItemContainerStyle="{StaticResource PlainRow}"
+                      SelectionMode="Single"
+                      CanDragItems="True" CanReorderItems="True" AllowDrop="True">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
                         <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
