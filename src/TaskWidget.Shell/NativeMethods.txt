@@ -11,6 +11,7 @@ GetClassName
 GetForegroundWindow
 GetModuleHandle
 GetMonitorInfo
+MONITORINFOEXW
 GetWindow
 GetWindowLongPtr
 GetWindowRect
@@ -53,3 +54,16 @@ WM_WINDOWPOSCHANGING
 WINDOW_EX_STYLE
 WINDOW_STYLE
 WINDOWPOS
+EDD_GET_DEVICE_INTERFACE_NAME
+EnumDisplayDevices
+EnumDisplayMonitors
+GetDpiForMonitor
+HTCAPTION
+MonitorFromPoint
+ReleaseCapture
+SendMessage
+SYSTEM_PARAMETERS_INFO_ACTION
+WM_DISPLAYCHANGE
+WM_DPICHANGED
+WM_NCLBUTTONDOWN
+WM_SETTINGCHANGE

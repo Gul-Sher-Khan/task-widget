@@ -5,6 +5,10 @@
     xmlns:local="using:TaskWidget"
     xmlns:core="using:TaskWidget.Core">
     <Grid x:Name="Host" Background="{ThemeResource SurfaceSolidBrush}">
+        <ScrollViewer x:Name="WidgetScroll" HorizontalAlignment="Left" VerticalAlignment="Top"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled"
+                      ZoomMode="Disabled" IsTabStop="False" Background="Transparent">
         <Grid x:Name="Root" Width="360" Padding="0,0,0,8" HorizontalAlignment="Left" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -16,7 +20,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Padding="16,10,8,4" ColumnSpacing="2">
+            <Grid x:Name="HeaderStrip" Padding="16,10,8,4" ColumnSpacing="2" Background="Transparent" PointerPressed="Header_PointerPressed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -187,6 +191,7 @@
 
             <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
+        </ScrollViewer>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
               Background="Transparent" Visibility="Collapsed" PointerPressed="Dock_PointerPressed">
