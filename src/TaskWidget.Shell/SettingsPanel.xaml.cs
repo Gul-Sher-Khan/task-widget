@@ -56,6 +56,16 @@ public sealed partial class SettingsPanel : UserControl
 
     void CheckNow_Click(object sender, RoutedEventArgs e) => _ = Model.CheckForUpdates();
 
+    void SignOut_Click(object sender, RoutedEventArgs e) => _ = Model.SignOut();
+
+    void Model_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ready || ModelBox.SelectedIndex < 0)
+            return;
+
+        Model.ModelIndex = ModelBox.SelectedIndex;
+    }
+
     void Update_Click(object sender, RoutedEventArgs e) => _ = Model.StartUpdate();
 
     void Auto_Toggled(object sender, RoutedEventArgs e)

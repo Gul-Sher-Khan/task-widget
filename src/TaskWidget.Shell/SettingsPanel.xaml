@@ -27,7 +27,43 @@
     <ScrollViewer x:Name="Scroller" MaxHeight="520" Padding="12,0,12,4" VerticalScrollBarVisibility="Auto">
         <StackPanel Padding="0,0,0,8">
 
-            <TextBlock Text="Appearance" Style="{StaticResource Section}" Margin="4,4,0,6" />
+            <TextBlock Text="Connection" Style="{StaticResource Section}" Margin="4,4,0,6" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="10">
+                    <StackPanel Spacing="10" Visibility="{x:Bind local:Row.When(Model.HasConnection), Mode=OneWay}">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="32" Height="32">
+                                <Ellipse Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="{x:Bind Model.AccountInitial, Mode=OneWay}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Grid>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind Model.Account, Mode=OneWay}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{x:Bind Model.Plan, Mode=OneWay}" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Sign out" Click="SignOut_Click" Padding="10,4,10,5" FontSize="12.5" />
+                        </Grid>
+                        <ComboBox x:Name="ModelBox" Header="Model" ItemsSource="{x:Bind Model.ModelChoices, Mode=OneWay}" SelectedIndex="{x:Bind Model.ModelIndex, Mode=OneWay}"
+                                  HorizontalAlignment="Stretch" FontSize="13" SelectionChanged="Model_Changed" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="8" Visibility="{x:Bind local:Row.Unless(Model.HasConnection), Mode=OneWay}">
+                        <TextBlock Text="Not signed in" FontSize="13" />
+                        <local:SignInBlock Model="{x:Bind Model}" />
+                        <TextBlock Style="{StaticResource Caption}" Text="Opens your browser. Task Widget never sees your password." />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Caption}"
+                               Text="Captures use your ChatGPT plan. Automatic picks the fastest model your plan offers. Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Appearance" Style="{StaticResource Section}" />
             <Border Style="{StaticResource Card}">
                 <StackPanel Spacing="10">
                     <ComboBox x:Name="ThemeBox" Header="Theme" ItemsSource="{x:Bind Themes}" SelectedIndex="{x:Bind Model.ThemeIndex, Mode=OneWay}"

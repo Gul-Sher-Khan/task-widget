@@ -468,6 +468,17 @@ sealed class InterpretHttp : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var path = request.RequestUri?.AbsolutePath ?? "";
+        if (path.Contains("/oauth/token", StringComparison.Ordinal))
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """{"access_token":"access-1","refresh_token":"refresh-1","id_token":"id-1","expires_in":3600}""",
+                    Encoding.UTF8,
+                    "application/json"),
+            };
+        }
+
         if (path.Contains("/v1/models", StringComparison.Ordinal))
         {
             ModelsCalls++;

@@ -20,8 +20,22 @@ public sealed partial class TaskRow : ObservableObject
     public Effort Effort { get; }
     public string Details { get; }
     public string Capture { get; }
-    public bool IsPending { get; }
-    public string PendingText { get; }
+
+    [ObservableProperty]
+    public partial bool IsPending { get; set; }
+
+    [ObservableProperty]
+    public partial string PendingText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsWaiting { get; set; }
+
+    [ObservableProperty]
+    public partial string Reason { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool LightsDot { get; set; }
+
     public DateTimeOffset CreatedAt { get; internal set; }
     public int Spoken { get; internal set; }
     public DateTimeOffset? CompletedAt { get; internal set; }
