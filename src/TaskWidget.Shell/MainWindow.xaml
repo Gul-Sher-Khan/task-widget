@@ -94,7 +94,9 @@
                     </ListView.ItemContainerTransitions>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
-                        <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
+                        <Grid>
+                        <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent"
+                              Visibility="{x:Bind local:Row.Unless(IsCaptureRow), Mode=OneWay}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -137,6 +139,8 @@
                                     <local:PriorityBadge Priority="{x:Bind Priority, Mode=OneTime}" />
                                 </Button>
                             </StackPanel>
+                        </Grid>
+                        <local:CaptureRow Item="{x:Bind}" Visibility="{x:Bind local:Row.When(IsCaptureRow), Mode=OneWay}" />
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>

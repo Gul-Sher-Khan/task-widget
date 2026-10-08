@@ -128,7 +128,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public bool Attention
     {
-        get => attention || updateReady;
+        get => attention || updateReady || Tasks.Any(task => task.IsFailed);
         set
         {
             if (attention == value)
@@ -174,12 +174,12 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public event Action? RaiseRequested;
 
-    public int OpenTaskCount => Tasks.Count(task => !task.IsPending);
+    public int OpenTaskCount => Tasks.Count(task => !task.NotTask);
 
 public void Move(TaskRow task, int index)
     {
         var from = Tasks.IndexOf(task);
-        if (from < 0 || index < 0 || index >= Tasks.Count || index == from)
+        if (from < 0 || index < 0 || index >= Tasks.Count || index == from || task.NotTask || Tasks[index].NotTask)
             return;
 
         var wasManual = HasManualPositions;
@@ -207,8 +207,8 @@ public void Move(TaskRow task, int index)
     {
         var before = Tasks.ToList();
         var wasManual = HasManualPositions;
-        var pending = before.Where(task => task.IsPending).ToList();
-        var sorted = before.Where(task => !task.IsPending).OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
+        var pending = before.Where(task => task.NotTask).ToList();
+        var sorted = before.Where(task => !task.NotTask).OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
         var order = pending.Concat(sorted).ToList();
         Apply(order);
         SetManual(false);
@@ -336,6 +336,9 @@ public void Move(TaskRow task, int index)
 
     public void Delete(TaskRow task)
     {
+        if (task.NotTask)
+            return;
+
         CancelStrike(task);
         var openIndex = Tasks.IndexOf(task);
         var wasDone = finished.Contains(task);
@@ -379,11 +382,11 @@ public void Move(TaskRow task, int index)
             pill: true);
     }
 
-    public int OpenHighCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.High);
+    public int OpenHighCount => Tasks.Count(task => !task.NotTask && task.Priority == Priority.High);
 
-    public int OpenMediumCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Medium);
+    public int OpenMediumCount => Tasks.Count(task => !task.NotTask && task.Priority == Priority.Medium);
 
-    public int OpenLowCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Low);
+    public int OpenLowCount => Tasks.Count(task => !task.NotTask && task.Priority == Priority.Low);
 
     public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
 
@@ -725,6 +728,9 @@ public void Move(TaskRow task, int index)
 
     public void Tick(TaskRow task)
     {
+        if (task.NotTask)
+            return;
+
         if (task.IsStriking)
         {
             CancelStrike(task);
@@ -896,6 +902,7 @@ public void MoveTo(int from, int to)
         if (Interlocked.Exchange(ref disposed, 1) != 0)
             return;
 
+        captureCalls.Cancel();
         checking.Cancel();
         CancelSignIn();
         clock.Cancel();
@@ -971,7 +978,7 @@ public void MoveTo(int from, int to)
         Draft = CaptureText,
 Manual = HasManualPositions,
         ManualPositions = HasManualPositions,
-        Tasks = Tasks.Where(task => !task.IsPending).Concat(finished).Concat(deleted).Select(Record).ToList(),
+        Tasks = Tasks.Where(task => !task.NotTask).Concat(finished).Concat(deleted).Select(Record).ToList(),
         Captures = captures.Select(capture => new CaptureRecord
         {
             Id = capture.Id,
@@ -1079,7 +1086,11 @@ Manual = HasManualPositions,
         HasManualPositions = file.Manual || file.ManualPositions;
         CaptureText = file.Draft;
         foreach (var capture in file.Captures ?? [])
+        {
             captures.Add(capture);
+            if (capture.State == "failed")
+                Tasks.Insert(0, FailedRow(capture));
+        }
     }
 
     // New, edited and un-completed Tasks all land here.
@@ -1095,7 +1106,7 @@ Manual = HasManualPositions,
     int IndexFor(TaskRow task)
     {
         var i = 0;
-        while (i < Tasks.Count && Tasks[i].IsPending)
+        while (i < Tasks.Count && Tasks[i].NotTask)
             i++;
 
         for (; i < Tasks.Count; i++)

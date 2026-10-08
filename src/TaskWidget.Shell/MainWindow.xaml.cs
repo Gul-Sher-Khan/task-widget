@@ -52,6 +52,7 @@ public sealed partial class MainWindow : Window
     {
         Model = model;
         InitializeComponent();
+        Host.DataContext = model;
         SettingsHost.Children.Add(new SettingsPanel(model));
         BannerHost.Children.Add(new BannerView(model));
         Title = "Task Widget";
@@ -222,7 +223,7 @@ public sealed partial class MainWindow : Window
 
     void List_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
     {
-        dragFrom = e.Items.Count == 1 && e.Items[0] is TaskRow row ? Model.Tasks.IndexOf(row) : -1;
+        dragFrom = e.Items.Count == 1 && e.Items[0] is TaskRow row && !row.NotTask ? Model.Tasks.IndexOf(row) : -1;
         if (dragFrom < 0)
             e.Cancel = true;
     }
