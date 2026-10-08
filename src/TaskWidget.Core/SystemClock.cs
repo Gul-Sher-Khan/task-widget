@@ -5,6 +5,8 @@ public sealed class SystemClock : IClock
     readonly object gate = new();
     readonly List<Timer> timers = [];
 
+public DateTimeOffset Now => DateTimeOffset.UtcNow;
+
     public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
 
     public IDisposable Schedule(TimeSpan delay, Action callback)

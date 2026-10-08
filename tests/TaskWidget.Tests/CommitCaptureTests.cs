@@ -178,7 +178,7 @@ sealed class ManualClock : IClock
     readonly DateTimeOffset start;
     long now;
 
-    public ManualClock()
+public ManualClock()
         : this(new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero))
     {
     }
@@ -186,6 +186,10 @@ sealed class ManualClock : IClock
     public ManualClock(DateTimeOffset start) => this.start = start;
 
     public DateTimeOffset UtcNow => start.AddMilliseconds(now);
+
+    public DateTimeOffset Now => UtcNow;
+
+    public void Set(DateTimeOffset time) => now = (long)(time - start).TotalMilliseconds;
 
     public IDisposable Schedule(TimeSpan delay, Action callback)
     {

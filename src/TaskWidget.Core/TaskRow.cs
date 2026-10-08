@@ -17,6 +17,7 @@ public sealed partial class TaskRow : ObservableObject
     public Effort Effort { get; }
     public string Details { get; }
     public DateTimeOffset CreatedAt { get; internal set; }
+    public int Spoken { get; internal set; }
     public DateTimeOffset? CompletedAt { get; internal set; }
     public DateTimeOffset? DeletedAt { get; internal set; }
 

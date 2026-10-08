@@ -1,6 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Runtime.Versioning;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Win32;
+
+[assembly: SupportedOSPlatform("windows")]
 
 namespace TaskWidget.Core;
 
@@ -10,37 +14,58 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public static readonly TimeSpan StrikeHold = TimeSpan.FromMilliseconds(1500);
     public static readonly TimeSpan DoneWindow = TimeSpan.FromDays(90);
     public static readonly TimeSpan UndoStay = TimeSpan.FromMilliseconds(5000);
+    public const string RunValueName = "Task Widget";
+    public const string DefaultRunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
     readonly IClock clock;
     readonly string tasksPath;
     readonly string settingsPath;
+    readonly string runKeyPath;
     readonly object gate = new();
+    readonly Dictionary<TaskRow, DateTimeOffset> created = [];
+    readonly Dictionary<TaskRow, int> spoken = [];
     string? pendingTasks;
     string? pendingSettings;
     IDisposable? saveTimer;
     readonly Dictionary<TaskRow, IDisposable> strikes = [];
     readonly List<TaskRow> finished = [];
     readonly List<TaskRow> deleted = [];
-    bool manual;
     readonly Stack<(Action Undo, Action Redo)> undo = new();
     readonly Stack<(Action Undo, Action Redo)> redo = new();
     IDisposable? pillTimer;
     int pillToken;
     int dirty;
     int disposed;
+    bool loading;
+    int rowsBeforeScrolling = 8;
+    bool startWithWindows;
 
-    public AppModel(string dataFolder, IClock clock)
+    public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
     {
         this.clock = clock;
+        this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
         Directory.CreateDirectory(dataFolder);
         tasksPath = Path.Combine(dataFolder, "tasks.json");
         settingsPath = Path.Combine(dataFolder, "settings.json");
-        Tasks.CollectionChanged += (_, _) => OnPropertyChanged(nameof(OpenTaskCount));
+        Tasks.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(OpenTaskCount));
+            OnPropertyChanged(nameof(OpenHighCount));
+            OnPropertyChanged(nameof(OpenMediumCount));
+            OnPropertyChanged(nameof(OpenLowCount));
+        };
         Load();
+        startWithWindows = RunValueExists();
     }
 
     [ObservableProperty]
     public partial string CaptureText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool Docked { get; private set; }
+
+    [ObservableProperty]
+    public partial bool Attention { get; set; }
 
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
@@ -53,15 +78,13 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public int OpenTaskCount => Tasks.Count;
 
-    public bool HasManualPositions => manual;
-
-    public void Move(TaskRow task, int index)
+public void Move(TaskRow task, int index)
     {
         var from = Tasks.IndexOf(task);
         if (from < 0 || index < 0 || index >= Tasks.Count || index == from)
             return;
 
-        var wasManual = manual;
+        var wasManual = HasManualPositions;
         Tasks.Move(from, index);
         SetManual(true);
         MarkDirty();
@@ -85,8 +108,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public void Resort()
     {
         var before = Tasks.ToList();
-        var wasManual = manual;
-        var sorted = before.OrderBy(task => task.Priority).ThenBy(task => task.Effort).ThenBy(task => task.CreatedAt).ToList();
+        var wasManual = HasManualPositions;
+        var sorted = before.OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
         Apply(sorted);
         SetManual(false);
         MarkDirty();
@@ -125,13 +148,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
     }
 
-    void SetManual(bool value)
-    {
-        if (manual == value)
-            return;
-        manual = value;
-        OnPropertyChanged(nameof(HasManualPositions));
-    }
+    void SetManual(bool value) => HasManualPositions = value;
 
     public void ToggleDoneView()
     {
@@ -184,7 +201,11 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     ObservableCollection<TaskRow> Current => ShowingDone ? DoneTasks : Tasks;
 
-    partial void OnShowingDoneChanged(bool value) => OnPropertyChanged(nameof(VisibleTasks));
+    partial void OnShowingDoneChanged(bool value)
+    {
+        OnPropertyChanged(nameof(VisibleTasks));
+        OnPropertyChanged(nameof(ShowingCapture));
+    }
 
     [ObservableProperty]
     public partial bool UndoVisible { get; private set; }
@@ -258,7 +279,97 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             pill: true);
     }
 
+    public int OpenHighCount => Tasks.Count(task => task.Priority == Priority.High);
+
+    public int OpenMediumCount => Tasks.Count(task => task.Priority == Priority.Medium);
+
+    public int OpenLowCount => Tasks.Count(task => task.Priority == Priority.Low);
+
+    public int RowsBeforeScrolling
+    {
+        get => rowsBeforeScrolling;
+        set
+        {
+            value = ClampRows(value);
+            if (rowsBeforeScrolling == value)
+                return;
+
+            rowsBeforeScrolling = value;
+            OnPropertyChanged(nameof(RowsBeforeScrolling));
+            OnPropertyChanged(nameof(RowsBeforeScrollingValue));
+            OnPropertyChanged(nameof(ListMaxHeight));
+            MarkDirty();
+        }
+    }
+
+    public double ListMaxHeight => rowsBeforeScrolling * 37d + 4d;
+
+    public double RowsBeforeScrollingValue
+    {
+        get => rowsBeforeScrolling;
+        set => RowsBeforeScrolling = (int)value;
+    }
+
+    public string VersionLine
+    {
+        get
+        {
+            var version = typeof(AppModel).Assembly.GetName().Version!;
+            return "Task Widget " + version.Major + "." + version.Minor + "." + version.Build;
+        }
+    }
+
+    public string GitHubUrl => "https://github.com/Gul-Sher-Khan/task-widget";
+
+    public string PrivacyUrl => "https://github.com/Gul-Sher-Khan/task-widget#privacy";
+
+    [ObservableProperty]
+    public partial bool SettingsOpen { get; set; }
+
+    public bool ShowingTasks => !SettingsOpen;
+
+    public bool ShowingCapture => ShowingTasks && !ShowingDone;
+
+    public void ToggleSettings() => SettingsOpen = !SettingsOpen;
+
+    partial void OnSettingsOpenChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowingTasks));
+        OnPropertyChanged(nameof(ShowingCapture));
+    }
+
+    public bool StartWithWindows
+    {
+        get => startWithWindows;
+        set
+        {
+            if (startWithWindows == value)
+                return;
+
+            startWithWindows = value;
+            ApplyRunValue();
+            OnPropertyChanged(nameof(StartWithWindows));
+        }
+    }
+
+    [ObservableProperty]
+    public partial bool HasManualPositions { get; private set; }
+
     public void UpdateDraft(string text) => CaptureText = text;
+
+    public void Dock()
+    {
+        if (Docked)
+            return;
+        Docked = true;
+    }
+
+    public void Expand()
+    {
+        if (!Docked)
+            return;
+        Docked = false;
+    }
 
     public void CommitCapture()
     {
@@ -270,9 +381,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         if (title.Length == 0)
             return;
 
-        var task = new TaskRow(title, Priority.Medium, Effort.Short, "");
-        task.CreatedAt = clock.UtcNow;
-        Tasks.Add(task);
+Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
     }
 
@@ -324,25 +433,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             pill: false);
     }
 
-    int InsertIndex(TaskRow task)
-    {
-        for (var i = 0; i < Tasks.Count; i++)
-        {
-            if (RanksAbove(task, Tasks[i]))
-                return i;
-        }
-
-        return Tasks.Count;
-    }
-
-    static bool RanksAbove(TaskRow task, TaskRow other)
-    {
-        if (task.Priority != other.Priority)
-            return task.Priority < other.Priority;
-        if (task.Effort != other.Effort)
-            return task.Effort < other.Effort;
-        return task.CreatedAt < other.CreatedAt;
-    }
+    int InsertIndex(TaskRow task) => IndexFor(task);
 
     void CancelStrike(TaskRow task)
     {
@@ -426,6 +517,42 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             DoneTasks.Add(task);
     }
 
+public void MoveTo(int from, int to)
+    {
+        if (from < 0 || from >= Tasks.Count)
+            return;
+
+        Move(Tasks[from], to);
+    }
+
+    public void AcceptReorder(int from, int to)
+    {
+        if (from == to || to < 0 || to >= Tasks.Count)
+            return;
+
+        var task = Tasks[to];
+        var wasManual = HasManualPositions;
+        HasManualPositions = true;
+        MarkDirty();
+        Push(
+            "Move",
+            () =>
+            {
+                Place(task, from);
+                HasManualPositions = wasManual;
+                MarkDirty();
+            },
+            () =>
+            {
+                Place(task, to);
+                HasManualPositions = true;
+                MarkDirty();
+            },
+            pill: false);
+    }
+
+    public void ReSort() => Resort();
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -437,13 +564,15 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     partial void OnCaptureTextChanged(string value) => MarkDirty();
 
+    partial void OnDockedChanged(bool value) => MarkDirty();
+
     void MarkDirty()
     {
-        if (Volatile.Read(ref disposed) != 0)
+        if (loading || Volatile.Read(ref disposed) != 0)
             return;
 
         var tasks = JsonSerializer.Serialize(SnapshotTasks(), WidgetJsonContext.Default.TaskFile);
-        var settings = JsonSerializer.Serialize(new SettingsFile { SchemaVersion = 1 }, WidgetJsonContext.Default.SettingsFile);
+        var settings = JsonSerializer.Serialize(SnapshotSettings(), WidgetJsonContext.Default.SettingsFile);
         lock (gate)
         {
             pendingTasks = tasks;
@@ -459,7 +588,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     {
         SchemaVersion = 1,
         Draft = CaptureText,
-        ManualPositions = manual,
+Manual = HasManualPositions,
+        ManualPositions = HasManualPositions,
         Tasks = Tasks.Concat(finished).Concat(deleted).Select(Record).ToList(),
     };
 
@@ -469,7 +599,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         Details = task.Details,
         Priority = PriorityName(task.Priority),
         Effort = EffortName(task.Effort),
+        Created = task.CreatedAt,
         CreatedAt = task.CreatedAt,
+        Spoken = task.Spoken,
         CompletedAt = task.CompletedAt,
         DeletedAt = task.DeletedAt,
     };
@@ -482,11 +614,30 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(priority)),
     };
 
+    SettingsFile SnapshotSettings() => new()
+    {
+        SchemaVersion = 1,
+        Docked = Docked,
+        RowsBeforeScrolling = rowsBeforeScrolling,
+    };
+
     void Load()
     {
-        if (!File.Exists(tasksPath))
-            return;
+        loading = true;
+        try
+        {
+            if (File.Exists(tasksPath))
+                LoadTasks();
+            LoadSettings();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
 
+    void LoadTasks()
+    {
         var file = JsonSerializer.Deserialize(File.ReadAllText(tasksPath), WidgetJsonContext.Default.TaskFile);
         if (file is null)
             return;
@@ -498,7 +649,11 @@ public sealed partial class AppModel : ObservableObject, IDisposable
                 ParsePriority(record.Priority),
                 ParseEffort(record.Effort),
                 record.Details);
-            task.CreatedAt = record.CreatedAt ?? clock.UtcNow;
+            var at = record.Created ?? record.CreatedAt ?? clock.Now;
+            task.CreatedAt = at;
+            task.Spoken = record.Spoken;
+            created[task] = at;
+            spoken[task] = record.Spoken;
             if (record.DeletedAt is DateTimeOffset deletedAt)
             {
                 task.DeletedAt = deletedAt;
@@ -517,8 +672,85 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
 
         ShowDoneWindow();
-        SetManual(file.ManualPositions);
+        HasManualPositions = file.Manual || file.ManualPositions;
         CaptureText = file.Draft;
+    }
+
+    // New, edited and un-completed Tasks all land here.
+    void Place(TaskRow task, DateTimeOffset at, int spokenIndex)
+    {
+        task.CreatedAt = at;
+        task.Spoken = spokenIndex;
+        created[task] = at;
+        spoken[task] = spokenIndex;
+        Tasks.Insert(IndexFor(task), task);
+    }
+
+    int IndexFor(TaskRow task)
+    {
+        for (var i = 0; i < Tasks.Count; i++)
+        {
+            if (CompareRank(task, Tasks[i]) < 0)
+                return i;
+        }
+
+        return Tasks.Count;
+    }
+
+    int CompareRank(TaskRow a, TaskRow b)
+    {
+        var byPriority = a.Priority.CompareTo(b.Priority);
+        if (byPriority != 0)
+            return byPriority;
+
+        var byEffort = a.Effort.CompareTo(b.Effort);
+        if (byEffort != 0)
+            return byEffort;
+
+        var byAge = CreatedOf(a).CompareTo(CreatedOf(b));
+        if (byAge != 0)
+            return byAge;
+
+        return SpokenOf(a).CompareTo(SpokenOf(b));
+    }
+
+    void LoadSettings()
+    {
+        if (!File.Exists(settingsPath))
+            return;
+
+        SettingsFile? file;
+        try
+        {
+            file = JsonSerializer.Deserialize(File.ReadAllText(settingsPath), WidgetJsonContext.Default.SettingsFile);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (file is null)
+            return;
+
+        Docked = file.Docked;
+        rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
+    }
+
+    static int ClampRows(int value) => Math.Clamp(value, 4, 15);
+
+    bool RunValueExists()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(runKeyPath);
+        return key?.GetValue(RunValueName) is not null;
+    }
+
+    void ApplyRunValue()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(runKeyPath);
+        if (startWithWindows)
+            key.SetValue(RunValueName, "\"" + Environment.ProcessPath + "\"");
+        else
+            key.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
 
     static Priority ParsePriority(string value) => value switch
@@ -536,6 +768,12 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         "long" => Effort.Long,
         _ => throw new InvalidDataException($"Unknown effort \"{value}\"."),
     };
+
+    DateTimeOffset CreatedOf(TaskRow task) =>
+        created.TryGetValue(task, out var at) ? at : task.CreatedAt;
+
+    int SpokenOf(TaskRow task) =>
+        spoken.TryGetValue(task, out var index) ? index : task.Spoken;
 
     static string EffortName(Effort effort) => effort switch
     {

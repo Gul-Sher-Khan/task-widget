@@ -6,6 +6,7 @@ sealed class TaskFile
 {
     public int SchemaVersion { get; set; }
     public string Draft { get; set; } = "";
+public bool Manual { get; set; }
     public bool ManualPositions { get; set; }
     public List<TaskRecord> Tasks { get; set; } = [];
 }
@@ -16,7 +17,9 @@ sealed class TaskRecord
     public string Details { get; set; } = "";
     public string Priority { get; set; } = "";
     public string Effort { get; set; } = "";
+public DateTimeOffset? Created { get; set; }
     public DateTimeOffset? CreatedAt { get; set; }
+    public int Spoken { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
 }
@@ -24,6 +27,8 @@ sealed class TaskRecord
 sealed class SettingsFile
 {
     public int SchemaVersion { get; set; }
+    public bool Docked { get; set; }
+    public int RowsBeforeScrolling { get; set; } = 8;
 }
 
 [JsonSourceGenerationOptions(
