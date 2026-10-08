@@ -44,6 +44,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     SettingsFile settingsFile = new() { SchemaVersion = 1 };
     readonly Dictionary<TaskRow, DateTimeOffset> created = [];
     readonly Dictionary<TaskRow, int> spoken = [];
+    readonly List<CaptureRecord> captures = [];
+    string accessToken = "";
     string? pendingTasks;
     string? pendingSettings;
     IDisposable? saveTimer;
@@ -118,6 +120,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool Docked { get; private set; }
 
+    [ObservableProperty]
+    public partial bool IsProcessing { get; private set; }
+
     bool attention;
     bool updateReady;
 
@@ -169,7 +174,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public event Action? RaiseRequested;
 
-    public int OpenTaskCount => Tasks.Count;
+    public int OpenTaskCount => Tasks.Count(task => !task.IsPending);
 
 public void Move(TaskRow task, int index)
     {
@@ -202,8 +207,10 @@ public void Move(TaskRow task, int index)
     {
         var before = Tasks.ToList();
         var wasManual = HasManualPositions;
-        var sorted = before.OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
-        Apply(sorted);
+        var pending = before.Where(task => task.IsPending).ToList();
+        var sorted = before.Where(task => !task.IsPending).OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
+        var order = pending.Concat(sorted).ToList();
+        Apply(order);
         SetManual(false);
         MarkDirty();
         Push(
@@ -216,7 +223,7 @@ public void Move(TaskRow task, int index)
             },
             () =>
             {
-                Apply(sorted);
+                Apply(order);
                 SetManual(false);
                 MarkDirty();
             },
@@ -526,11 +533,11 @@ public void Move(TaskRow task, int index)
             pill: true);
     }
 
-    public int OpenHighCount => Tasks.Count(task => task.Priority == Priority.High);
+    public int OpenHighCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.High);
 
-    public int OpenMediumCount => Tasks.Count(task => task.Priority == Priority.Medium);
+    public int OpenMediumCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Medium);
 
-    public int OpenLowCount => Tasks.Count(task => task.Priority == Priority.Low);
+    public int OpenLowCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Low);
 
     public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
 
@@ -838,17 +845,27 @@ public void Move(TaskRow task, int index)
             DismissRaised();
     }
 
-    public void CommitCapture()
+    public async Task CommitCapture()
     {
         var text = CaptureText.Replace("\r\n", "\n").Trim();
         if (text.Length == 0)
             return;
 
+        StopWaiting();
+        if (HasConnection && httpClient is not null)
+        {
+            var work = Interpret(text);
+            if (overFullScreen)
+                DismissRaised();
+            await work;
+            return;
+        }
+
         var title = text.Split('\n')[0].Trim();
         if (title.Length == 0)
             return;
 
-Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
+        Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
         if (overFullScreen)
             DismissRaised();
@@ -1042,7 +1059,12 @@ public void MoveTo(int from, int to)
         httpClient?.Dispose();
     }
 
-    partial void OnCaptureTextChanged(string value) => MarkDirty();
+    partial void OnCaptureTextChanged(string value)
+    {
+        MarkDirty();
+        OnPropertyChanged(nameof(HasDraftText));
+        NoteDraftForDictation(value);
+    }
 
     partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
 
@@ -1110,7 +1132,15 @@ public void MoveTo(int from, int to)
         Draft = CaptureText,
 Manual = HasManualPositions,
         ManualPositions = HasManualPositions,
-        Tasks = Tasks.Concat(finished).Concat(deleted).Select(Record).ToList(),
+        Tasks = Tasks.Where(task => !task.IsPending).Concat(finished).Concat(deleted).Select(Record).ToList(),
+        Captures = captures.Select(capture => new CaptureRecord
+        {
+            Id = capture.Id,
+            Text = capture.Text,
+            Interpreted = capture.Interpreted,
+            State = capture.State,
+            Cause = capture.Cause,
+        }).ToList(),
     };
 
     TaskRecord Record(TaskRow task) => new()
@@ -1126,6 +1156,7 @@ Manual = HasManualPositions,
         Spoken = task.Spoken,
         CompletedAt = task.CompletedAt,
         DeletedAt = task.DeletedAt,
+        Capture = task.Capture,
     };
 
     SettingsFile SnapshotSettings() => new()
@@ -1138,11 +1169,14 @@ Manual = HasManualPositions,
         IssuedClientId = settingsFile.IssuedClientId,
         Theme = ThemeName(theme),
         Backdrop = BackdropName(backdrop),
+        Hotkey = hotkeyBinding.Text,
         CheckForUpdatesAutomatically = checkAutomatically,
         LastUpdateCheck = lastUpdateCheck,
         AvailableVersion = newVersion,
         UpdateResult = updateResult,
         InstallerUrl = installerUrl,
+        ModelsCachedAt = settingsFile.ModelsCachedAt,
+        Models = settingsFile.Models,
     };
 
     static string PriorityName(Priority priority) => priority switch
@@ -1181,7 +1215,8 @@ Manual = HasManualPositions,
                 record.Title,
                 ParsePriority(record.Priority),
                 ParseEffort(record.Effort),
-                record.Details);
+                record.Details,
+                record.Capture ?? "");
             var at = record.Created ?? record.CreatedAt ?? clock.Now;
             task.CreatedAt = at;
             task.Spoken = record.Spoken;
@@ -1209,6 +1244,8 @@ Manual = HasManualPositions,
         ShowDoneWindow();
         HasManualPositions = file.Manual || file.ManualPositions;
         CaptureText = file.Draft;
+        foreach (var capture in file.Captures ?? [])
+            captures.Add(capture);
     }
 
     // New, edited and un-completed Tasks all land here.
@@ -1223,7 +1260,11 @@ Manual = HasManualPositions,
 
     int IndexFor(TaskRow task)
     {
-        for (var i = 0; i < Tasks.Count; i++)
+        var i = 0;
+        while (i < Tasks.Count && Tasks[i].IsPending)
+            i++;
+
+        for (; i < Tasks.Count; i++)
         {
             if (CompareRank(task, Tasks[i]) < 0)
                 return i;
@@ -1272,10 +1313,12 @@ Manual = HasManualPositions,
             return;
 
         settingsFile = file;
+        settingsFile.Models ??= [];
         Docked = file.Docked;
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
         theme = ParseTheme(file.Theme);
         backdrop = ParseBackdrop(file.Backdrop);
+        ApplyHotkey(file.Hotkey);
         checkAutomatically = file.CheckForUpdatesAutomatically;
         lastUpdateCheck = file.LastUpdateCheck;
         installerUrl = file.InstallerUrl;
@@ -1308,7 +1351,8 @@ Manual = HasManualPositions,
         {
             var plain = protector.Unprotect(File.ReadAllBytes(tokenPath));
             var file = JsonSerializer.Deserialize(plain, WidgetJsonContext.Default.TokenFile);
-            HasConnection = file is not null && file.AccessToken.Length > 0;
+            accessToken = file?.AccessToken ?? "";
+            HasConnection = accessToken.Length > 0;
         }
         catch (JsonException)
         {

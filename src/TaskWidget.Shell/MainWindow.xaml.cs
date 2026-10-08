@@ -47,12 +47,14 @@ public sealed partial class MainWindow : Window
     RectInt32 toRect;
     Action? animDone;
     readonly DesktopLayer desktop;
+    readonly CaptureHotkey hotkey;
 
     public MainWindow(AppModel model)
     {
         Model = model;
         InitializeComponent();
-        SettingsHost.Children.Add(new SettingsPanel(model));
+        var settings = new SettingsPanel(model);
+        SettingsHost.Children.Add(settings);
         BannerHost.Children.Add(new BannerView(model));
         Title = "Task Widget";
 
@@ -64,6 +66,8 @@ public sealed partial class MainWindow : Window
         AppWindow.SetPresenter(presenter);
 
         desktop = new DesktopLayer(this, Model, Reanchor);
+        hotkey = new CaptureHotkey(this, Model, () => Capture.Text);
+        settings.RecordingChanged = value => hotkey.Recording = value;
         AppWindow.Closing += (_, _) => desktop.AllowClose();
 
         if (Model.Docked)
@@ -96,6 +100,7 @@ public sealed partial class MainWindow : Window
             desktop.Deactivated -= OnShellDeactivated;
             CompositionTarget.Rendering -= Tick;
             desktop.Dispose();
+            hotkey.Dispose();
             appearance?.Dispose();
             backdropController?.Dispose();
             Model.Dispose();
@@ -414,8 +419,12 @@ public sealed partial class MainWindow : Window
 
     void Host_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == VirtualKey.Escape && Model.Escape())
-            e.Handled = true;
+        if (e.Key != VirtualKey.Escape)
+            return;
+
+        if (!Model.Escape())
+            Model.Leave();
+        e.Handled = true;
     }
 
     void OnRaised()
@@ -485,13 +494,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnShellDeactivated()
-    {
-        if (Model.Raised)
-            Model.NoteDeactivated();
-        else if (!Model.Docked)
-            desktop.PinToBottom();
-    }
+    void OnShellDeactivated() => Model.Deactivate(ForegroundProcess.FileName());
 
     void Reanchor()
     {
@@ -507,6 +510,12 @@ public sealed partial class MainWindow : Window
     }
 
     void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
+
+    void ClearDraft_Click(object sender, RoutedEventArgs e)
+    {
+        Model.ClearDraft();
+        Capture.Focus(FocusState.Programmatic);
+    }
 
     // The installer replaces this process. A separate command waits, installs silently, then starts Task Widget again.
     void FinishUpdate()
@@ -527,6 +536,21 @@ public sealed partial class MainWindow : Window
 
     void Capture_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        if (ctrl && e.Key == VirtualKey.Z)
+        {
+            Model.Undo();
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == VirtualKey.Y)
+        {
+            Model.Redo();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != VirtualKey.Enter)
             return;
 

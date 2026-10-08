@@ -4,12 +4,15 @@ namespace TaskWidget.Core;
 
 public sealed partial class TaskRow : ObservableObject
 {
-    public TaskRow(string title, Priority priority, Effort effort, string details)
+    public TaskRow(string title, Priority priority, Effort effort, string details, string capture = "", bool pending = false)
     {
         Title = title;
         Priority = priority;
         Effort = effort;
         Details = details;
+        Capture = capture;
+        IsPending = pending;
+        PendingText = pending ? "Interpreting…" : "";
     }
 
     [ObservableProperty]
@@ -39,6 +42,10 @@ public sealed partial class TaskRow : ObservableObject
 
     [ObservableProperty]
     public partial bool IsExpanded { get; set; }
+
+    public string Capture { get; }
+    public bool IsPending { get; }
+    public string PendingText { get; }
     public DateTimeOffset CreatedAt { get; internal set; }
     public int Spoken { get; internal set; }
     public DateTimeOffset? CompletedAt { get; internal set; }

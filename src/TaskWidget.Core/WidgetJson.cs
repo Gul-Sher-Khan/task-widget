@@ -9,6 +9,16 @@ sealed class TaskFile
     public bool Manual { get; set; }
     public bool ManualPositions { get; set; }
     public List<TaskRecord> Tasks { get; set; } = [];
+    public List<CaptureRecord> Captures { get; set; } = [];
+}
+
+sealed class CaptureRecord
+{
+    public string Id { get; set; } = "";
+    public string Text { get; set; } = "";
+    public string Interpreted { get; set; } = "";
+    public string State { get; set; } = "";
+    public string Cause { get; set; } = "";
 }
 
 sealed class TaskRecord
@@ -24,6 +34,7 @@ sealed class TaskRecord
     public int Spoken { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
+    public string Capture { get; set; } = "";
 }
 
 sealed class SettingsFile
@@ -41,6 +52,15 @@ sealed class SettingsFile
     public bool WelcomeRetired { get; set; }
     public string ExtAgentHostId { get; set; } = "";
     public string IssuedClientId { get; set; } = "";
+    public string Hotkey { get; set; } = "";
+    public DateTimeOffset ModelsCachedAt { get; set; }
+    public List<CachedModel> Models { get; set; } = [];
+}
+
+sealed class CachedModel
+{
+    public string Slug { get; set; } = "";
+    public int Priority { get; set; }
 }
 
 sealed class TokenFile

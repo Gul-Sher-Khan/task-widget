@@ -309,7 +309,7 @@ public sealed class UpdateTests
         {
             await model.UpdateCheck;
             model.UpdateDraft("email Sarah");
-            model.CommitCapture();
+            await model.CommitCapture();
             model.UpdateDraft("buy milk");
 
             handler.HoldDownloads();
