@@ -4,6 +4,8 @@ public sealed class SystemClock : IClock
 {
     Timer? timer;
 
+    public DateTimeOffset Now => DateTimeOffset.UtcNow;
+
     public void Schedule(TimeSpan delay, Action callback)
     {
         timer?.Dispose();

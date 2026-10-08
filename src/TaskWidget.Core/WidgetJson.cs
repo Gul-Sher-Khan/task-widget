@@ -6,6 +6,7 @@ sealed class TaskFile
 {
     public int SchemaVersion { get; set; }
     public string Draft { get; set; } = "";
+    public bool Manual { get; set; }
     public List<TaskRecord> Tasks { get; set; } = [];
 }
 
@@ -15,6 +16,8 @@ sealed class TaskRecord
     public string Details { get; set; } = "";
     public string Priority { get; set; } = "";
     public string Effort { get; set; } = "";
+    public DateTimeOffset Created { get; set; }
+    public int Spoken { get; set; }
 }
 
 sealed class SettingsFile
