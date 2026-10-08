@@ -63,11 +63,19 @@
             </Grid>
 
 <Grid Grid.Row="1" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
-                <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
+                <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,32,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
-                         PlaceholderText="Capture a thought…"
+                         PlaceholderText="{x:Bind Model.CapturePlaceholder, Mode=OneWay}"
                          Text="{x:Bind Model.CaptureText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
+                <Button Style="{StaticResource Bare}" Width="22" Height="22"
+                        HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                        Click="ClearDraft_Click"
+                        Visibility="{x:Bind local:Row.When(Model.HasDraftText), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE711;" FontSize="12" />
+                </Button>
+                <ProgressBar IsIndeterminate="True" VerticalAlignment="Bottom" Margin="6,0,6,0" IsHitTestVisible="False"
+                             Visibility="{x:Bind local:Row.When(Model.WaitingDictation), Mode=OneWay}" />
             </Grid>
 
             <local:Welcome Grid.Row="2" Card="True" local:Fx.Enter="True"

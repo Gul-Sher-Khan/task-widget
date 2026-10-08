@@ -578,7 +578,8 @@ public void Move(TaskRow task, int index)
         if (title.Length == 0)
             return;
 
-Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
+        StopWaiting();
+        Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
         if (overFullScreen)
             DismissRaised();
@@ -770,7 +771,12 @@ public void MoveTo(int from, int to)
         httpClient?.Dispose();
     }
 
-    partial void OnCaptureTextChanged(string value) => MarkDirty();
+    partial void OnCaptureTextChanged(string value)
+    {
+        MarkDirty();
+        OnPropertyChanged(nameof(HasDraftText));
+        NoteDraftForDictation(value);
+    }
 
     partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
 
@@ -864,6 +870,7 @@ Manual = HasManualPositions,
         IssuedClientId = settingsFile.IssuedClientId,
         Theme = ThemeName(theme),
         Backdrop = BackdropName(backdrop),
+        Hotkey = hotkeyBinding.Text,
     };
 
     static string PriorityName(Priority priority) => priority switch
@@ -995,6 +1002,7 @@ Manual = HasManualPositions,
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
         theme = ParseTheme(file.Theme);
         backdrop = ParseBackdrop(file.Backdrop);
+        ApplyHotkey(file.Hotkey);
     }
 
     void LoadConnection()

@@ -34,6 +34,7 @@ sealed class SettingsFile
     public bool WelcomeRetired { get; set; }
     public string ExtAgentHostId { get; set; } = "";
     public string IssuedClientId { get; set; } = "";
+    public string Hotkey { get; set; } = "";
 }
 
 sealed class TokenFile
