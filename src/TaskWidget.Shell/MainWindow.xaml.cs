@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Composition;
@@ -26,7 +27,9 @@ public sealed partial class MainWindow : Window
     const double DockHeightDip = 44;
     const double DockTopDip = 8;
 
-    MicaController? mica;
+    SystemAppearance? appearance;
+    ISystemBackdropControllerWithTargets? backdropController;
+    SystemBackdropConfiguration? backdropConfig;
     double current;
     double from;
     double target;
@@ -36,18 +39,21 @@ public sealed partial class MainWindow : Window
     long animStart;
     bool rendering;
     bool placed;
+    bool finishing;
     int dragFrom = -1;
     bool driving;
     bool slide;
     RectInt32 fromRect;
     RectInt32 toRect;
     Action? animDone;
+    readonly DesktopLayer desktop;
 
     public MainWindow(AppModel model)
     {
         Model = model;
         InitializeComponent();
         SettingsHost.Children.Add(new SettingsPanel(model));
+        BannerHost.Children.Add(new BannerView(model));
         Title = "Task Widget";
 
         var presenter = OverlappedPresenter.Create();
@@ -57,6 +63,9 @@ public sealed partial class MainWindow : Window
         presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
 
+        desktop = new DesktopLayer(this, Model, Reanchor);
+        AppWindow.Closing += (_, _) => desktop.AllowClose();
+
         if (Model.Docked)
         {
             Root.Visibility = Visibility.Collapsed;
@@ -64,6 +73,7 @@ public sealed partial class MainWindow : Window
         }
 
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
+        Host.PreviewKeyDown += Host_PreviewKeyDown;
         List.PreviewKeyDown += List_PreviewKeyDown;
         List.RightTapped += List_RightTapped;
         List.DragItemsStarting += List_DragItemsStarting;
@@ -72,18 +82,29 @@ public sealed partial class MainWindow : Window
         ApplyUndoMotion();
         Host.SizeChanged += (_, _) => OnHostSize();
         Model.PropertyChanged += OnModelPropertyChanged;
+        Model.RaiseRequested += OnRaiseAgain;
+        desktop.Deactivated += OnShellDeactivated;
+        appearance = new SystemAppearance(Model, () =>
+        {
+            if (placed)
+                ApplyLook();
+        });
         Closed += (_, _) =>
         {
             Model.PropertyChanged -= OnModelPropertyChanged;
+            Model.RaiseRequested -= OnRaiseAgain;
+            desktop.Deactivated -= OnShellDeactivated;
             CompositionTarget.Rendering -= Tick;
-            mica?.Dispose();
+            desktop.Dispose();
+            appearance?.Dispose();
+            backdropController?.Dispose();
             Model.Dispose();
         };
     }
 
     public AppModel Model { get; }
 
-void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
+    void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
 
     void Check_Click(object sender, RoutedEventArgs e)
     {
@@ -177,6 +198,8 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         if (box.DataContext is TaskRow { IsExpanded: true } task)
             Model.EditDetails(task, box.Text);
     }
+
+    public void Raise() => Model.Raise();
 
     void List_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -339,16 +362,168 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
 
     void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AppModel.Docked) || !placed)
+        if (e.PropertyName == nameof(AppModel.RestartRequested) && Model.RestartRequested)
+        {
+            if (DispatcherQueue.HasThreadAccess)
+                FinishUpdate();
+            else
+                DispatcherQueue.TryEnqueue(FinishUpdate);
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppModel.Docked))
+        {
+            if (!placed)
+                return;
+            if (Model.Docked)
+                PlayToDock();
+            else
+                PlayToWidget();
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppModel.Raised))
+        {
+            if (!placed)
+                return;
+            if (Model.Raised)
+                OnRaised();
+            else
+                OnDismissed();
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppModel.FullScreenApp))
+        {
+            if (!placed)
+                return;
+            OnFullScreenChanged();
+            return;
+        }
+
+        if (e.PropertyName is nameof(AppModel.Theme) or nameof(AppModel.Backdrop))
+            appearance?.Publish();
+
+        if (!placed)
             return;
 
-        if (Model.Docked)
-            PlayToDock();
-        else
+        if (e.PropertyName is nameof(AppModel.Theme) or nameof(AppModel.Backdrop)
+            or nameof(AppModel.AppearsDark) or nameof(AppModel.EffectiveBackdrop))
+            ApplyLook();
+    }
+
+    void Host_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Escape && Model.Escape())
+            e.Handled = true;
+    }
+
+    void OnRaised()
+    {
+        desktop.BringToFront(Model.FullScreenApp);
+        if (Model.Docked && !driving)
             PlayToWidget();
+        Capture.Focus(FocusState.Programmatic);
+    }
+
+    void OnRaiseAgain()
+    {
+        if (!placed)
+            return;
+        desktop.BringToFront(Model.FullScreenApp);
+        Capture.Focus(FocusState.Programmatic);
+    }
+
+    void OnDismissed()
+    {
+        if (Model.Docked)
+        {
+            if (driving)
+                return;
+            if (Model.FullScreenApp)
+            {
+                Root.Visibility = Visibility.Collapsed;
+                DockRoot.Visibility = Visibility.Visible;
+                current = DockHeightDip;
+                Place(DockClient());
+                desktop.ApplyDock(yieldFocus: false);
+                desktop.Hide();
+                desktop.YieldToFullScreen();
+                return;
+            }
+
+            PlayToDock();
+            return;
+        }
+
+        desktop.PinToBottom();
+        if (Model.FullScreenApp)
+            desktop.YieldToFullScreen();
+    }
+
+    void OnFullScreenChanged()
+    {
+        if (driving)
+            return;
+
+        if (Model.Raised)
+        {
+            desktop.BringToFront(Model.FullScreenApp);
+            return;
+        }
+
+        if (!Model.Docked)
+            return;
+
+        if (Model.FullScreenApp)
+            desktop.Hide();
+        else
+        {
+            Place(DockClient());
+            desktop.ApplyDock(yieldFocus: false);
+            desktop.ShowNoActivate();
+        }
+    }
+
+    void OnShellDeactivated()
+    {
+        if (Model.Raised)
+            Model.NoteDeactivated();
+        else if (!Model.Docked)
+            desktop.PinToBottom();
+    }
+
+    void Reanchor()
+    {
+        if (!placed || Host.XamlRoot is null)
+            return;
+
+        if (Model.Docked && !Model.Raised)
+            Place(DockClient());
+        else
+            Place(WidgetClient(current > 0 ? current : widgetHeight));
+
+        desktop.ReapplyZOrder();
     }
 
     void Settings_Click(object sender, RoutedEventArgs e) => Model.ToggleSettings();
+
+    // The installer replaces this process. A separate command waits, installs silently, then starts Task Widget again.
+    void FinishUpdate()
+    {
+        if (finishing || Model.InstallerPath is not string installer || Environment.ProcessPath is not string app)
+            return;
+
+        finishing = true;
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = "/c ping 127.0.0.1 -n 3 >nul & \"" + installer + "\" /VERYSILENT /NORESTART & start \"\" \"" + app + "\"",
+            CreateNoWindow = true,
+            UseShellExecute = false,
+        });
+        Close();
+    }
 
     void Capture_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -374,20 +549,25 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         if (!placed)
         {
             placed = true;
-            ApplyMica();
+            ApplyLook();
             if (Model.Docked)
             {
                 Root.Visibility = Visibility.Collapsed;
                 DockRoot.Visibility = Visibility.Visible;
                 current = DockHeightDip;
                 Place(DockClient());
+                desktop.ApplyDock(yieldFocus: true);
+                desktop.CheckFullScreen();
+                if (!Model.ShowDock)
+                    desktop.Hide();
                 return;
             }
 
             current = Root.ActualHeight;
             widgetHeight = current;
             Place(WidgetClient(current));
-            Capture.Focus(FocusState.Programmatic);
+            desktop.PinToBottom();
+            desktop.CheckFullScreen();
             return;
         }
 
@@ -430,6 +610,9 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         DockRoot.Visibility = Visibility.Visible;
         AnimateContent(DockRoot, show: true, Ms("DockInMs"));
         SpringIn(DockRoot);
+        desktop.ApplyDock(yieldFocus: true);
+        if (!Model.ShowDock)
+            desktop.Hide();
         driving = false;
     }
 
@@ -439,6 +622,7 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
             return;
 
         driving = true;
+        desktop.PrepareWidgetChrome();
         Activate();
         AnimateContent(DockRoot, show: false, Ms("DockOutMs"));
         Root.Visibility = Visibility.Visible;
@@ -452,6 +636,9 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         {
             DockRoot.Visibility = Visibility.Collapsed;
             driving = false;
+            // Commit or Esc during the unroll still has to send a temporary Widget away.
+            if (!Model.Raised && Model.Docked)
+                OnDismissed();
         });
         Capture.Focus(FocusState.Programmatic);
     }
@@ -587,25 +774,55 @@ void Done_Click(object sender, RoutedEventArgs e) => Model.ToggleDoneView();
         (int)Math.Round(a.Width + (b.Width - a.Width) * t),
         (int)Math.Round(a.Height + (b.Height - a.Height) * t));
 
-    void ApplyMica()
+    void ApplyLook()
     {
-        var config = new SystemBackdropConfiguration
+        bool contrast = appearance?.ContrastTheme == true;
+        Host.RequestedTheme = contrast
+            ? ElementTheme.Default
+            : Model.Theme switch
+            {
+                ThemeChoice.Light => ElementTheme.Light,
+                ThemeChoice.Dark => ElementTheme.Dark,
+                _ => ElementTheme.Default,
+            };
+
+        backdropController?.RemoveAllSystemBackdropTargets();
+        backdropController?.Dispose();
+        backdropController = null;
+        backdropConfig = null;
+
+        var effective = contrast ? BackdropChoice.Solid : Model.EffectiveBackdrop;
+        if (effective == BackdropChoice.Solid)
         {
+            Host.ClearValue(Grid.BackgroundProperty);
+            return;
+        }
+
+        backdropConfig = new SystemBackdropConfiguration
+        {
+            // Kept true so Mica and Acrylic stay live when the window is inactive.
             IsInputActive = true,
-            Theme = Application.Current.RequestedTheme == ApplicationTheme.Dark
-                ? SystemBackdropTheme.Dark
-                : SystemBackdropTheme.Light,
+            Theme = Model.AppearsDark ? SystemBackdropTheme.Dark : SystemBackdropTheme.Light,
         };
+
         try
         {
-            mica = new MicaController { Kind = MicaKind.Base };
-            mica.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
-            mica.SetSystemBackdropConfiguration(config);
+            backdropController = effective switch
+            {
+                BackdropChoice.MicaAlt => new MicaController { Kind = MicaKind.BaseAlt },
+                BackdropChoice.Acrylic => new DesktopAcrylicController { Kind = DesktopAcrylicKind.Base },
+                _ => new MicaController { Kind = MicaKind.Base },
+            };
+            backdropController.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
+            backdropController.SetSystemBackdropConfiguration(backdropConfig);
             Host.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         }
         catch (COMException)
         {
-            mica = null;
+            backdropController?.Dispose();
+            backdropController = null;
+            backdropConfig = null;
+            Host.ClearValue(Grid.BackgroundProperty);
         }
     }
 }

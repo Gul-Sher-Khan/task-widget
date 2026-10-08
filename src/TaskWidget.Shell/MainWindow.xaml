@@ -13,6 +13,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Padding="16,10,8,4" ColumnSpacing="2">
@@ -62,7 +63,9 @@
                 </Button>
             </Grid>
 
-<Grid Grid.Row="1" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
+            <Grid x:Name="BannerHost" Grid.Row="1" Visibility="{x:Bind local:Row.When(Model.HasBanner), Mode=OneWay}" />
+
+            <Grid Grid.Row="2" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
                 <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,10,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
                          PlaceholderText="Capture a thought…"
@@ -70,11 +73,11 @@
                          ToolTipService.ToolTip="Type or dictate. Enter adds it, Shift+Enter is a new line." />
             </Grid>
 
-            <local:Welcome Grid.Row="2" Card="True" local:Fx.Enter="True"
+            <local:Welcome Grid.Row="3" Card="True" local:Fx.Enter="True"
                            Model="{x:Bind Model}"
                            Visibility="{x:Bind local:F.Both(Model.ShowWelcome, Model.ShowingTasks), Mode=OneWay}" />
 
-            <Grid Grid.Row="3">
+            <Grid Grid.Row="4">
                 <ListView x:Name="List" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
                           ItemsSource="{x:Bind Model.VisibleTasks, Mode=OneWay}"
                           SelectedIndex="{x:Bind Model.SelectedIndex, Mode=TwoWay}"
@@ -165,11 +168,11 @@
                 </Border>
             </Grid>
 
-            <local:Welcome Grid.Row="4" Card="False"
+            <local:Welcome Grid.Row="5" Card="False"
                            Model="{x:Bind Model}"
                            Visibility="{x:Bind local:F.Both(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
 
-            <Grid x:Name="SettingsHost" Grid.Row="5" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
+            <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"

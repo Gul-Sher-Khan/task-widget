@@ -10,6 +10,15 @@ using Microsoft.Win32;
 
 namespace TaskWidget.Core;
 
+public enum WidgetBanner
+{
+    None,
+    NewerVersion,
+    SignedOut,
+    Recovered,
+    StartedEmpty,
+}
+
 public sealed partial class AppModel : ObservableObject, IDisposable
 {
     public static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(300);
@@ -21,6 +30,9 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public const string TokenFileName = "tokens.bin";
 
     readonly IClock clock;
+    readonly SynchronizationContext? ui;
+    readonly HttpMessageHandler? http;
+    readonly CancellationTokenSource checking = new();
     readonly string tasksPath;
     readonly string settingsPath;
     readonly string tokenPath;
@@ -45,8 +57,21 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     int dirty;
     int disposed;
     bool loading;
+    bool overFullScreen;
     int rowsBeforeScrolling = 8;
     bool startWithWindows;
+    ThemeChoice theme = ThemeChoice.System;
+    BackdropChoice backdrop = BackdropChoice.Mica;
+    bool systemDark;
+    bool backdropAvailable = true;
+    Task inFlight = Task.CompletedTask;
+    UpdatePhase phase;
+    string newVersion = "";
+    string checkedWhen = "";
+    string updateResult = "";
+    string installerUrl = "";
+    DateTimeOffset? lastUpdateCheck;
+    bool checkAutomatically = true;
 
     public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
         : this(dataFolder, clock, null, null, null, runKeyPath)
@@ -57,11 +82,13 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         string dataFolder,
         IClock clock,
         HttpMessageHandler? http,
-        IBrowserLauncher? browser,
-        IDataProtector? protector,
+        IBrowserLauncher? browser = null,
+        IDataProtector? protector = null,
         string? runKeyPath = null)
     {
+        ui = SynchronizationContext.Current;
         this.clock = clock;
+        this.http = http;
         this.browser = browser;
         this.protector = protector;
         this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
@@ -81,6 +108,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         };
         Load();
         startWithWindows = RunValueExists();
+        if (http is not null && checkAutomatically && CheckDue())
+            inFlight = CheckOnce();
     }
 
     [ObservableProperty]
@@ -89,8 +118,41 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool Docked { get; private set; }
 
+    bool attention;
+    bool updateReady;
+
+    public bool Attention
+    {
+        get => attention || updateReady;
+        set
+        {
+            if (attention == value)
+                return;
+            attention = value;
+            OnPropertyChanged(nameof(Attention));
+        }
+    }
+
+    // Newer version outranks signed out, which outranks recovered and started empty.
+    public WidgetBanner Banner => updateReady ? WidgetBanner.NewerVersion : WidgetBanner.None;
+
+    public bool HasBanner => Banner != WidgetBanner.None;
+
+    public string BannerMessage => Banner == WidgetBanner.NewerVersion
+        ? "Version " + newVersion + " is available"
+        : "";
+
+    public string BannerPrimary => Banner == WidgetBanner.NewerVersion ? "Get update" : "";
+
+    public bool BannerIsInfo => Banner == WidgetBanner.NewerVersion;
+
+    public bool CanCheck => phase is UpdatePhase.Idle or UpdatePhase.Current or UpdatePhase.Failed;
+
     [ObservableProperty]
-    public partial bool Attention { get; set; }
+    public partial bool Raised { get; private set; }
+
+    [ObservableProperty]
+    public partial bool FullScreenApp { get; private set; }
 
     public ObservableCollection<TaskRow> Tasks { get; } = [];
 
@@ -100,6 +162,12 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public partial bool ShowingDone { get; private set; }
 
     public ObservableCollection<TaskRow> VisibleTasks => ShowingDone ? DoneTasks : Tasks;
+
+    public bool ShowDock => Docked && !Raised && !FullScreenApp;
+
+    public bool ShowWidget => !Docked || Raised;
+
+    public event Action? RaiseRequested;
 
     public int OpenTaskCount => Tasks.Count;
 
@@ -533,6 +601,71 @@ public void Move(TaskRow task, int index)
 
     public string PrivacyUrl => "https://github.com/Gul-Sher-Khan/task-widget#privacy";
 
+    public bool UpdChecking => phase == UpdatePhase.Checking;
+
+    public bool UpdCurrent => phase == UpdatePhase.Current;
+
+    public bool UpdAvailable => phase == UpdatePhase.Available;
+
+    public bool UpdFailed => phase == UpdatePhase.Failed;
+
+    public bool UpdDownloading => phase == UpdatePhase.Downloading;
+
+    public bool DownloadStarted { get; private set; }
+
+    public string? InstallerPath { get; private set; }
+
+    public bool RestartRequested { get; private set; }
+
+    public double Downloaded => downloaded;
+
+    public string DownloadNote => "Task Widget restarts to finish. Your Tasks and draft are kept.";
+
+    double downloaded;
+
+    public string NewVersion => newVersion;
+
+    public string CheckedWhen => checkedWhen;
+
+    public bool AutoUpdate
+    {
+        get => checkAutomatically;
+        set
+        {
+            if (checkAutomatically == value)
+                return;
+            checkAutomatically = value;
+            OnPropertyChanged(nameof(AutoUpdate));
+            MarkDirty();
+        }
+    }
+
+    public string AboutStatus => phase switch
+    {
+        UpdatePhase.Checking => "Checking for updates…",
+        UpdatePhase.Available => "Version " + newVersion + " is available",
+        UpdatePhase.Downloading => "Downloading " + newVersion + "…",
+        UpdatePhase.Failed => "Couldn't check for updates",
+        UpdatePhase.Current => "You're up to date",
+        _ => "",
+    };
+
+    public Task UpdateCheck => inFlight;
+
+    public Task CheckForUpdates()
+    {
+        if (!inFlight.IsCompleted)
+            return inFlight;
+        return inFlight = CheckOnce();
+    }
+
+    public Task StartUpdate()
+    {
+        if (http is null || !updateReady || phase == UpdatePhase.Downloading || installerUrl.Length == 0)
+            return Task.CompletedTask;
+        return inFlight = DownloadInstaller();
+    }
+
     [ObservableProperty]
     public partial bool SettingsOpen { get; set; }
 
@@ -562,6 +695,93 @@ public void Move(TaskRow task, int index)
         }
     }
 
+    public ThemeChoice Theme
+    {
+        get => theme;
+        set
+        {
+            if (theme == value)
+                return;
+
+            bool appearedDark = AppearsDark;
+            theme = value;
+            OnPropertyChanged(nameof(Theme));
+            OnPropertyChanged(nameof(ThemeIndex));
+            if (appearedDark != AppearsDark)
+                OnPropertyChanged(nameof(AppearsDark));
+            MarkDirty();
+        }
+    }
+
+    public int ThemeIndex
+    {
+        get => (int)theme;
+        set
+        {
+            if (value is < 0 or > 2)
+                return;
+            Theme = (ThemeChoice)value;
+        }
+    }
+
+    public BackdropChoice Backdrop
+    {
+        get => backdrop;
+        set
+        {
+            if (backdrop == value)
+                return;
+
+            var effective = EffectiveBackdrop;
+            backdrop = value;
+            OnPropertyChanged(nameof(Backdrop));
+            OnPropertyChanged(nameof(BackdropIndex));
+            if (effective != EffectiveBackdrop)
+                OnPropertyChanged(nameof(EffectiveBackdrop));
+            MarkDirty();
+        }
+    }
+
+    public int BackdropIndex
+    {
+        get => (int)backdrop;
+        set
+        {
+            if (value is < 0 or > 3)
+                return;
+            Backdrop = (BackdropChoice)value;
+        }
+    }
+
+    public bool AppearsDark => theme switch
+    {
+        ThemeChoice.Dark => true,
+        ThemeChoice.Light => false,
+        _ => systemDark,
+    };
+
+    public BackdropChoice EffectiveBackdrop => backdropAvailable ? backdrop : BackdropChoice.Solid;
+
+    public bool ShowBackdropNote => !backdropAvailable;
+
+    public void ReportSystemAppearance(bool dark, bool backdropAvailable)
+    {
+        bool appearedDark = AppearsDark;
+        bool showedNote = ShowBackdropNote;
+        var effective = EffectiveBackdrop;
+        if (systemDark == dark && this.backdropAvailable == backdropAvailable)
+            return;
+
+        systemDark = dark;
+        this.backdropAvailable = backdropAvailable;
+        if (appearedDark != AppearsDark)
+            OnPropertyChanged(nameof(AppearsDark));
+        if (effective != EffectiveBackdrop)
+            OnPropertyChanged(nameof(EffectiveBackdrop));
+        if (showedNote != ShowBackdropNote)
+            OnPropertyChanged(nameof(ShowBackdropNote));
+    }
+
     [ObservableProperty]
     public partial bool HasManualPositions { get; private set; }
 
@@ -569,9 +789,11 @@ public void Move(TaskRow task, int index)
 
     public void Dock()
     {
-        if (Docked)
-            return;
-        Docked = true;
+        overFullScreen = false;
+        if (!Docked)
+            Docked = true;
+        if (Raised)
+            Raised = false;
     }
 
     public void Expand()
@@ -579,6 +801,41 @@ public void Move(TaskRow task, int index)
         if (!Docked)
             return;
         Docked = false;
+    }
+
+    public void SetFullScreenApp(bool present) => FullScreenApp = present;
+
+    // Brings the Widget forward. A second call asks the shell to raise again.
+    // Over a full-screen app the Dock stays put and the Widget leaves on commit, Esc, or deactivate.
+    public void Raise()
+    {
+        if (FullScreenApp)
+            overFullScreen = true;
+        else if (Docked)
+            Expand();
+
+        if (Raised)
+        {
+            RaiseRequested?.Invoke();
+            return;
+        }
+
+        Raised = true;
+    }
+
+    public bool Escape()
+    {
+        if (!overFullScreen)
+            return false;
+
+        DismissRaised();
+        return true;
+    }
+
+    public void NoteDeactivated()
+    {
+        if (Raised)
+            DismissRaised();
     }
 
     public void CommitCapture()
@@ -593,6 +850,15 @@ public void Move(TaskRow task, int index)
 
 Place(new TaskRow(title, Priority.Medium, Effort.Short, ""), clock.Now, spokenIndex: 0);
         CaptureText = "";
+        if (overFullScreen)
+            DismissRaised();
+    }
+
+    void DismissRaised()
+    {
+        overFullScreen = false;
+        if (Raised)
+            Raised = false;
     }
 
     public void Tick(TaskRow task)
@@ -769,6 +1035,7 @@ public void MoveTo(int from, int to)
         if (Interlocked.Exchange(ref disposed, 1) != 0)
             return;
 
+        checking.Cancel();
         CancelSignIn();
         clock.Cancel();
         WriteIfDirty();
@@ -781,7 +1048,28 @@ public void MoveTo(int from, int to)
 
     partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
 
-    partial void OnDockedChanged(bool value) => MarkDirty();
+    partial void OnDockedChanged(bool value)
+    {
+        MarkDirty();
+        OnPropertyChanged(nameof(ShowDock));
+        OnPropertyChanged(nameof(ShowWidget));
+    }
+
+    partial void OnRaisedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowDock));
+        OnPropertyChanged(nameof(ShowWidget));
+    }
+
+    partial void OnFullScreenAppChanged(bool value)
+    {
+        if (value && Raised)
+            overFullScreen = true;
+        else if (!value)
+            overFullScreen = false;
+        OnPropertyChanged(nameof(ShowDock));
+        OnPropertyChanged(nameof(ShowWidget));
+    }
 
     void RaiseSignInBindings()
     {
@@ -848,6 +1136,13 @@ Manual = HasManualPositions,
         WelcomeRetired = settingsFile.WelcomeRetired,
         ExtAgentHostId = settingsFile.ExtAgentHostId,
         IssuedClientId = settingsFile.IssuedClientId,
+        Theme = ThemeName(theme),
+        Backdrop = BackdropName(backdrop),
+        CheckForUpdatesAutomatically = checkAutomatically,
+        LastUpdateCheck = lastUpdateCheck,
+        AvailableVersion = newVersion,
+        UpdateResult = updateResult,
+        InstallerUrl = installerUrl,
     };
 
     static string PriorityName(Priority priority) => priority switch
@@ -979,6 +1274,29 @@ Manual = HasManualPositions,
         settingsFile = file;
         Docked = file.Docked;
         rowsBeforeScrolling = ClampRows(file.RowsBeforeScrolling);
+        theme = ParseTheme(file.Theme);
+        backdrop = ParseBackdrop(file.Backdrop);
+        checkAutomatically = file.CheckForUpdatesAutomatically;
+        lastUpdateCheck = file.LastUpdateCheck;
+        installerUrl = file.InstallerUrl;
+        updateResult = file.UpdateResult;
+        if (updateResult == "available" && file.AvailableVersion.Length > 0)
+        {
+            phase = UpdatePhase.Available;
+            newVersion = file.AvailableVersion;
+            updateReady = true;
+            checkedWhen = CheckedLine();
+        }
+        else if (updateResult == "current")
+        {
+            phase = UpdatePhase.Current;
+            checkedWhen = CheckedLine();
+        }
+        else if (updateResult == "failed")
+        {
+            phase = UpdatePhase.Failed;
+            checkedWhen = "No connection. Will try again later.";
+        }
     }
 
     void LoadConnection()
@@ -1022,6 +1340,36 @@ Manual = HasManualPositions,
         else
             key.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
+
+    static ThemeChoice ParseTheme(string? value) => value switch
+    {
+        "light" => ThemeChoice.Light,
+        "dark" => ThemeChoice.Dark,
+        _ => ThemeChoice.System,
+    };
+
+    static BackdropChoice ParseBackdrop(string? value) => value switch
+    {
+        "micaAlt" => BackdropChoice.MicaAlt,
+        "acrylic" => BackdropChoice.Acrylic,
+        "solid" => BackdropChoice.Solid,
+        _ => BackdropChoice.Mica,
+    };
+
+    static string ThemeName(ThemeChoice value) => value switch
+    {
+        ThemeChoice.Light => "light",
+        ThemeChoice.Dark => "dark",
+        _ => "system",
+    };
+
+    static string BackdropName(BackdropChoice value) => value switch
+    {
+        BackdropChoice.MicaAlt => "micaAlt",
+        BackdropChoice.Acrylic => "acrylic",
+        BackdropChoice.Solid => "solid",
+        _ => "mica",
+    };
 
     static Priority ParsePriority(string value) => value switch
     {
@@ -1081,5 +1429,236 @@ Manual = HasManualPositions,
         if (!File.Exists(path))
             File.WriteAllBytes(path, []);
         File.Replace(tmp, path, path + ".bak", ignoreMetadataErrors: true);
+    }
+
+    async Task CheckOnce()
+    {
+        if (http is null || Volatile.Read(ref disposed) != 0)
+            return;
+
+        phase = UpdatePhase.Checking;
+        RaiseUpdate();
+        try
+        {
+            using var client = new HttpClient(http, disposeHandler: false);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "TaskWidget");
+            using var response = await client.GetAsync(
+                "https://api.github.com/repos/Gul-Sher-Khan/task-widget/releases?per_page=100",
+                checking.Token);
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadAsStringAsync(checking.Token);
+            var best = NewestPublished(body);
+            if (best is null || best.Version <= RunningVersion())
+            {
+                phase = UpdatePhase.Current;
+                newVersion = "";
+                installerUrl = "";
+                updateResult = "current";
+                updateReady = false;
+            }
+            else
+            {
+                phase = UpdatePhase.Available;
+                newVersion = best.Text;
+                installerUrl = best.InstallerUrl;
+                updateResult = "available";
+                updateReady = true;
+            }
+
+            lastUpdateCheck = clock.Now;
+            checkedWhen = "Checked just now";
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            phase = UpdatePhase.Failed;
+            checkedWhen = "No connection. Will try again later.";
+            updateResult = "failed";
+            updateReady = false;
+            lastUpdateCheck = clock.Now;
+        }
+
+        if (Volatile.Read(ref disposed) != 0)
+            return;
+
+        RaiseUpdate();
+        MarkDirty();
+    }
+
+    bool CheckDue() => lastUpdateCheck is not DateTimeOffset at || clock.Now - at >= TimeSpan.FromDays(1);
+
+    string CheckedLine()
+    {
+        if (lastUpdateCheck is null)
+            return "";
+        var at = lastUpdateCheck.Value;
+        if (at.Date == clock.Now.Date)
+            return "Checked today, " + at.ToString("HH:mm");
+        return "Checked " + at.ToString("d MMM, HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    async Task DownloadInstaller()
+    {
+        phase = UpdatePhase.Downloading;
+        DownloadStarted = true;
+        downloaded = 0;
+        RaiseUpdate();
+        try
+        {
+            using var client = new HttpClient(http!, disposeHandler: false);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "TaskWidget");
+            using var response = await client.GetAsync(installerUrl, HttpCompletionOption.ResponseHeadersRead, checking.Token);
+            response.EnsureSuccessStatusCode();
+            var directory = Path.Combine(Path.GetTempPath(), "TaskWidget");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "TaskWidget-" + newVersion + "-" + ArchitectureName() + ".exe");
+            var total = response.Content.Headers.ContentLength ?? 0;
+            await using (var input = await response.Content.ReadAsStreamAsync(checking.Token))
+            await using (var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                var buffer = new byte[81920];
+                long got = 0;
+                int read;
+                while ((read = await input.ReadAsync(buffer, checking.Token)) > 0)
+                {
+                    await output.WriteAsync(buffer.AsMemory(0, read), checking.Token);
+                    got += read;
+                    if (total > 0)
+                    {
+                        downloaded = (double)got / total;
+                        OnUi(() => OnPropertyChanged(nameof(Downloaded)));
+                    }
+                }
+            }
+
+            downloaded = 1;
+            InstallerPath = path;
+            WriteIfDirty();
+            RestartRequested = true;
+            OnUi(() =>
+            {
+                OnPropertyChanged(nameof(InstallerPath));
+                OnPropertyChanged(nameof(RestartRequested));
+                OnPropertyChanged(nameof(Downloaded));
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            if (Volatile.Read(ref disposed) != 0)
+                return;
+            phase = UpdatePhase.Available;
+            RaiseUpdate();
+        }
+    }
+
+    static PublishedRelease? NewestPublished(string json)
+    {
+        PublishedRelease? best = null;
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return null;
+
+        foreach (var release in doc.RootElement.EnumerateArray())
+        {
+            if (Flag(release, "draft") || Flag(release, "prerelease"))
+                continue;
+            if (!release.TryGetProperty("tag_name", out var tagName))
+                continue;
+            var tag = tagName.GetString();
+            if (tag is null || tag.Length < 6 || tag[0] != 'v')
+                continue;
+            var number = tag[1..];
+            if (number.Split('.').Length != 3 || !Version.TryParse(number, out var version))
+                continue;
+            if (best is not null && version <= best.Version)
+                continue;
+
+            best = new PublishedRelease(version, number, AssetUrl(release, number) ?? "");
+        }
+
+        return best;
+    }
+
+    static string? AssetUrl(JsonElement release, string version)
+    {
+        var arch = ArchitectureName();
+        if (arch is null || !release.TryGetProperty("assets", out var assets))
+            return null;
+
+        var name = "TaskWidget-" + version + "-" + arch + ".exe";
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (!asset.TryGetProperty("name", out var assetName) || assetName.GetString() != name)
+                continue;
+            return asset.TryGetProperty("browser_download_url", out var url) ? url.GetString() : null;
+        }
+
+        return null;
+    }
+
+    static string? ArchitectureName() => System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture switch
+    {
+        System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+        System.Runtime.InteropServices.Architecture.X64 => "x64",
+        _ => null,
+    };
+
+    sealed record PublishedRelease(Version Version, string Text, string InstallerUrl);
+
+    static bool Flag(JsonElement release, string name) =>
+        release.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
+
+    static Version RunningVersion()
+    {
+        var version = typeof(AppModel).Assembly.GetName().Version!;
+        return new Version(version.Major, version.Minor, version.Build < 0 ? 0 : version.Build);
+    }
+
+    void RaiseUpdate() => OnUi(NotifyUpdate);
+
+    void OnUi(Action action)
+    {
+        if (ui is null || SynchronizationContext.Current == ui)
+            action();
+        else
+            ui.Post(_ => action(), null);
+    }
+
+    void NotifyUpdate()
+    {
+        OnPropertyChanged(nameof(UpdChecking));
+        OnPropertyChanged(nameof(UpdCurrent));
+        OnPropertyChanged(nameof(UpdAvailable));
+        OnPropertyChanged(nameof(UpdFailed));
+        OnPropertyChanged(nameof(UpdDownloading));
+        OnPropertyChanged(nameof(DownloadStarted));
+        OnPropertyChanged(nameof(Downloaded));
+        OnPropertyChanged(nameof(NewVersion));
+        OnPropertyChanged(nameof(CheckedWhen));
+        OnPropertyChanged(nameof(AboutStatus));
+        OnPropertyChanged(nameof(Attention));
+        OnPropertyChanged(nameof(Banner));
+        OnPropertyChanged(nameof(HasBanner));
+        OnPropertyChanged(nameof(BannerMessage));
+        OnPropertyChanged(nameof(BannerPrimary));
+        OnPropertyChanged(nameof(BannerIsInfo));
+        OnPropertyChanged(nameof(CanCheck));
+    }
+
+    enum UpdatePhase
+    {
+        Idle,
+        Checking,
+        Current,
+        Available,
+        Downloading,
+        Failed,
     }
 }
