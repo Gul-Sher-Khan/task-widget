@@ -156,7 +156,17 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: Integer;
 begin
+  { Clicking Finish starts Task Widget. A silent install doesn't: the updater
+    restarts the app itself, and winget leaves starting it to the user. }
+  if (CurStep = ssDone) and not WizardSilent then
+  begin
+    ExecAsOriginalUser(ExpandConstant('{app}\{#AppExeName}'), '', '', SW_SHOWNORMAL, ewNoWait, Code);
+    Exit;
+  end;
+
   if CurStep <> ssPostInstall then
     Exit;
 
