@@ -107,8 +107,20 @@
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
                         <Grid>
+                        <Grid Padding="8,7,6,7" ColumnSpacing="10" Visibility="{x:Bind IsWaiting, Mode=OneWay}" local:Fx.Enter="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="22" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE823;" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis" Foreground="{ThemeResource MutedTextBrush}" />
+                                <TextBlock Text="{x:Bind Reason, Mode=OneWay}" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}" />
+                            </StackPanel>
+                        </Grid>
                         <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent"
-                              Visibility="{x:Bind local:Row.Unless(IsCaptureRow), Mode=OneWay}">
+                              Visibility="{x:Bind local:Row.When(IsTaskRow), Mode=OneWay}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />

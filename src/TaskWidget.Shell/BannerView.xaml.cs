@@ -14,5 +14,17 @@ public sealed partial class BannerView : UserControl
 
     public AppModel Model { get; }
 
-    void Primary_Click(object sender, RoutedEventArgs e) => Model.SettingsOpen = true;
+    void Primary_Click(object sender, RoutedEventArgs e)
+    {
+        if (Model.Banner == WidgetBanner.SignedOut)
+        {
+            if (Model.SignInWaiting)
+                Model.CancelSignIn();
+            else
+                _ = Model.SignIn();
+            return;
+        }
+
+        Model.SettingsOpen = true;
+    }
 }

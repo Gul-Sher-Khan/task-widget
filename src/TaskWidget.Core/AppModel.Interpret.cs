@@ -19,11 +19,77 @@ public sealed partial class AppModel
         var record = new CaptureRecord { Id = id, Text = text, State = "pending" };
         captures.Add(record);
         var pending = new TaskRow(text, Priority.Medium, Effort.Short, "", id, pending: true);
+        pending.CreatedAt = clock.Now;
         Tasks.Insert(0, pending);
         CaptureText = "";
         Flush();
         await RunCapture(pending, record, text, at);
     }
+
+    void Hold(string text)
+    {
+        var id = Guid.NewGuid().ToString("D");
+        var record = new CaptureRecord { Id = id, Text = text, State = "waiting", Cause = WaitingCause() };
+        captures.Add(record);
+        var row = new TaskRow(text, Priority.Medium, Effort.Short, "", id);
+        row.CreatedAt = clock.Now;
+        Tasks.Insert(0, row);
+        CaptureText = "";
+        MarkWaiting(record, row, record.Cause);
+    }
+
+    void ReleaseWaiting()
+    {
+        if (Volatile.Read(ref disposed) != 0)
+            return;
+
+        foreach (var row in Tasks.Where(task => task.IsWaiting).ToArray())
+        {
+            var record = captures.FirstOrDefault(capture => capture.Id == row.Capture);
+            if (record is null)
+                continue;
+            if (!HasConnection || !Online || httpClient is null)
+            {
+                MarkWaiting(record, row, WaitingCause());
+                continue;
+            }
+
+            record.State = "pending";
+            record.Cause = "";
+            row.BeginInterpret();
+            var at = row.CreatedAt == default ? clock.Now : row.CreatedAt;
+            _ = RunCapture(row, record, record.Text, at);
+        }
+    }
+
+    string WaitingCause() => !HasConnection
+        ? (settingsFile.WelcomeRetired ? "signed-out" : "no-connection")
+        : "offline";
+
+    void MarkWaiting(CaptureRecord record, TaskRow row, string cause)
+    {
+        record.State = "waiting";
+        record.Cause = cause;
+        row.IsPending = false;
+        row.PendingText = "";
+        row.IsFailed = false;
+        row.IsWaiting = true;
+        row.Reason = WaitingReason(cause);
+        row.LightsDot = cause != "offline";
+        OnPropertyChanged(nameof(Attention));
+        OnPropertyChanged(nameof(OpenTaskCount));
+        OnPropertyChanged(nameof(OpenHighCount));
+        OnPropertyChanged(nameof(OpenMediumCount));
+        OnPropertyChanged(nameof(OpenLowCount));
+        Flush();
+    }
+
+    static string WaitingReason(string cause) => cause switch
+    {
+        "offline" => "Waiting for connection",
+        "no-connection" => "Connect your ChatGPT account",
+        _ => "Signed out",
+    };
 
     async Task RunCapture(TaskRow row, CaptureRecord record, string text, DateTimeOffset at)
     {
@@ -42,6 +108,12 @@ public sealed partial class AppModel
 
             if (!Tasks.Contains(row))
                 return;
+
+            if (!HasConnection || !Online)
+            {
+                MarkWaiting(record, row, WaitingCause());
+                return;
+            }
 
             if (outcome.Tasks is not null)
             {
@@ -116,15 +188,24 @@ public sealed partial class AppModel
         try
         {
             await EnsureModels(timeout.Token);
+            if (!HasConnection)
+                return CaptureOutcome.Failed(CaptureKind.None, retry: false);
             if (settingsFile.Models.Count == 0)
                 return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, ResponsesEndpoint)
+            using var response = await SendAuthorized(
+                () => new HttpRequestMessage(HttpMethod.Post, ResponsesEndpoint)
+                {
+                    Content = new StringContent(RequestBody(text), Encoding.UTF8, "application/json"),
+                },
+                timeout.Token);
+            if (response is null)
             {
-                Content = new StringContent(RequestBody(text), Encoding.UTF8, "application/json"),
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            using var response = await httpClient!.SendAsync(request, timeout.Token);
+                if (!HasConnection)
+                    return CaptureOutcome.Failed(CaptureKind.None, retry: false);
+                return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
+            }
+
             var body = await response.Content.ReadAsStringAsync(timeout.Token);
             return Classify(response.StatusCode, body);
         }
@@ -605,22 +686,51 @@ public sealed partial class AppModel
             && clock.UtcNow < settingsFile.ModelsCachedAt.AddDays(1))
             return;
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, ModelsEndpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        using var response = await httpClient!.SendAsync(request, cancel);
-        if (!response.IsSuccessStatusCode)
+        using var response = await SendAuthorized(
+            () => new HttpRequestMessage(HttpMethod.Get, ModelsEndpoint),
+            cancel);
+        if (response is null || !response.IsSuccessStatusCode)
             return;
 
         var models = ReadModels(await response.Content.ReadAsStringAsync(cancel));
         if (models.Count == 0)
             return;
 
-        settingsFile.Models = models;
-        settingsFile.ModelsCachedAt = clock.UtcNow;
-        MarkDirty();
+        NoteModels(models);
+    }
+
+    async Task<HttpResponseMessage?> SendAuthorized(Func<HttpRequestMessage> create, CancellationToken cancel)
+    {
+        if (httpClient is null || !await EnsureAccess(force: false))
+            return null;
+
+        var response = await Send(create());
+        if ((int)response.StatusCode != 401)
+            return response;
+
+        response.Dispose();
+        if (!await EnsureAccess(force: true))
+            return null;
+
+        return await Send(create());
+
+        async Task<HttpResponseMessage> Send(HttpRequestMessage request)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            return await httpClient.SendAsync(request, cancel);
+        }
     }
 
     string ChooseModel()
+    {
+        if (settingsFile.ChosenModel.Length > 0
+            && settingsFile.Models.Any(model => model.Slug == settingsFile.ChosenModel))
+            return settingsFile.ChosenModel;
+
+        return AutomaticSlug();
+    }
+
+    string AutomaticSlug()
     {
         foreach (var slug in PreferredModels)
         {
@@ -628,7 +738,7 @@ public sealed partial class AppModel
                 return slug;
         }
 
-        return settingsFile.Models.MaxBy(model => model.Priority)!.Slug;
+        return settingsFile.Models.Count == 0 ? "" : settingsFile.Models.MaxBy(model => model.Priority)!.Slug;
     }
 
     enum CaptureKind

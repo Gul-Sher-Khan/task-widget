@@ -46,6 +46,13 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     readonly Dictionary<TaskRow, int> spoken = [];
     readonly List<CaptureRecord> captures = [];
     string accessToken = "";
+    string refreshToken = "";
+    string idToken = "";
+    string clientId = "";
+    DateTimeOffset accessExpiresAt;
+    DateTimeOffset refreshExpiresAt;
+    readonly object refreshGate = new();
+    Task<bool>? refreshInFlight;
     string? pendingTasks;
     string? pendingSettings;
     IDisposable? saveTimer;
@@ -75,6 +82,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     DateTimeOffset? lastUpdateCheck;
     bool checkAutomatically = true;
 
+    readonly INetwork? network;
+
     public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
         : this(dataFolder, clock, null, null, null, runKeyPath)
     {
@@ -86,13 +95,15 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         HttpMessageHandler? http,
         IBrowserLauncher? browser = null,
         IDataProtector? protector = null,
-        string? runKeyPath = null)
+        string? runKeyPath = null,
+        INetwork? network = null)
     {
         ui = SynchronizationContext.Current;
         this.clock = clock;
         this.http = http;
         this.browser = browser;
         this.protector = protector;
+        this.network = network;
         this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
         if (http is not null)
             httpClient = new HttpClient(http, disposeHandler: false);
@@ -110,6 +121,19 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         };
         Load();
         startWithWindows = RunValueExists();
+        if (network is not null)
+        {
+            network.Changed += () =>
+            {
+                if (ui is not null)
+                    ui.Post(_ => ReleaseWaiting(), null);
+                else
+                    ReleaseWaiting();
+            };
+        }
+
+        SettleModelChoice();
+        ReleaseWaiting();
         if (http is not null && checkAutomatically && CheckDue())
             inFlight = CheckOnce();
     }
@@ -128,7 +152,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public bool Attention
     {
-        get => attention || updateReady || Tasks.Any(task => task.IsFailed);
+        get => attention || updateReady || SignedOut || Tasks.Any(task => task.IsFailed || (task.IsWaiting && task.LightsDot));
         set
         {
             if (attention == value)
@@ -138,18 +162,115 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         }
     }
 
+    string accountEmail = "";
+    string planName = "";
+
+    public string Account => accountEmail;
+
+    public string Plan => planName;
+
+    public string AccountInitial => accountEmail.Length == 0
+        ? ""
+        : char.ToUpperInvariant(accountEmail[0]).ToString();
+
+    public string[] ModelChoices { get; private set; } = ["Automatic"];
+
+    public int ModelIndex
+    {
+        get
+        {
+            if (settingsFile.ChosenModel.Length == 0)
+                return 0;
+            var index = settingsFile.Models.FindIndex(model => model.Slug == settingsFile.ChosenModel);
+            return index < 0 ? 0 : index + 1;
+        }
+        set
+        {
+            var slug = value <= 0 || value > settingsFile.Models.Count ? "" : settingsFile.Models[value - 1].Slug;
+            if (settingsFile.ChosenModel == slug)
+                return;
+            settingsFile.ChosenModel = slug;
+            OnPropertyChanged(nameof(ModelIndex));
+            MarkDirty();
+        }
+    }
+
+    void SettleModelChoice()
+    {
+        if (settingsFile.ChosenModel.Length > 0
+            && settingsFile.Models.All(model => model.Slug != settingsFile.ChosenModel))
+            settingsFile.ChosenModel = "";
+        PublishModels();
+    }
+
+    void NoteModels(List<CachedModel> models)
+    {
+        settingsFile.Models = models;
+        settingsFile.ModelsCachedAt = clock.UtcNow;
+        if (settingsFile.ChosenModel.Length > 0 && models.All(model => model.Slug != settingsFile.ChosenModel))
+            settingsFile.ChosenModel = "";
+        PublishModels();
+        MarkDirty();
+    }
+
+    void PublishModels()
+    {
+        var auto = AutomaticSlug();
+        var label = auto.Length > 0 ? "Automatic (" + auto + ")" : "Automatic";
+        ModelChoices = [label, .. settingsFile.Models.Select(model => model.Slug)];
+        OnPropertyChanged(nameof(ModelChoices));
+        OnPropertyChanged(nameof(ModelIndex));
+    }
+
+    public bool SignedOut => settingsFile.WelcomeRetired && !HasConnection;
+
+    bool Online => network is null || network.Online;
+
     // Newer version outranks signed out, which outranks recovered and started empty.
-    public WidgetBanner Banner => updateReady ? WidgetBanner.NewerVersion : WidgetBanner.None;
+    public WidgetBanner Banner => updateReady ? WidgetBanner.NewerVersion
+        : SignedOut ? WidgetBanner.SignedOut
+        : WidgetBanner.None;
 
     public bool HasBanner => Banner != WidgetBanner.None;
 
-    public string BannerMessage => Banner == WidgetBanner.NewerVersion
-        ? "Version " + newVersion + " is available"
-        : "";
+    public string BannerMessage => Banner switch
+    {
+        WidgetBanner.NewerVersion => "Version " + newVersion + " is available",
+        WidgetBanner.SignedOut => SignInState switch
+        {
+            SignInPhase.Waiting => "Waiting for your browser…",
+            SignInPhase.Failed => "Sign-in didn't finish",
+            SignInPhase.NotEligible => "This ChatGPT plan can't be used in Task Widget. Go, Plus or Pro works.",
+            _ => "You're signed out of ChatGPT. New Captures wait until you sign in.",
+        },
+        _ => "",
+    };
 
-    public string BannerPrimary => Banner == WidgetBanner.NewerVersion ? "Get update" : "";
+    public string BannerPrimary => Banner switch
+    {
+        WidgetBanner.NewerVersion => "Get update",
+        WidgetBanner.SignedOut => SignInState switch
+        {
+            SignInPhase.Waiting => "Cancel",
+            SignInPhase.Failed => "Try again",
+            _ => "Sign in",
+        },
+        _ => "",
+    };
 
     public bool BannerIsInfo => Banner == WidgetBanner.NewerVersion;
+
+    public bool BannerIsWarning => Banner == WidgetBanner.SignedOut
+        && SignInState is not (SignInPhase.Failed or SignInPhase.NotEligible);
+
+    public bool BannerIsError => Banner == WidgetBanner.SignedOut
+        && SignInState is SignInPhase.Failed or SignInPhase.NotEligible;
+
+    public bool BannerBusy => Banner == WidgetBanner.SignedOut && SignInState == SignInPhase.Waiting;
+
+    public bool BannerNotBusy => !BannerBusy;
+
+    public string BannerTip => Banner == WidgetBanner.SignedOut && SignInState == SignInPhase.Failed ? SignInCause : "";
 
     public bool CanCheck => phase is UpdatePhase.Idle or UpdatePhase.Current or UpdatePhase.Failed;
 
@@ -857,6 +978,14 @@ public void Move(TaskRow task, int index)
             return;
 
         StopWaiting();
+        if (httpClient is not null && (browser is not null || protector is not null) && (!HasConnection || !Online))
+        {
+            Hold(text);
+            if (overFullScreen)
+                DismissRaised();
+            return;
+        }
+
         if (HasConnection && httpClient is not null)
         {
             var work = Interpret(text);
@@ -1077,7 +1206,12 @@ public void MoveTo(int from, int to)
 
     partial void OnSignInStateChanged(SignInPhase value) => RaiseSignInBindings();
 
-    partial void OnHasConnectionChanged(bool value) => RaiseWelcome();
+    partial void OnHasConnectionChanged(bool value)
+    {
+        RaiseWelcome();
+        RaiseBanner();
+        OnPropertyChanged(nameof(Attention));
+    }
 
     partial void OnDockedChanged(bool value)
     {
@@ -1109,12 +1243,29 @@ public void MoveTo(int from, int to)
         OnPropertyChanged(nameof(SignInFailed));
         OnPropertyChanged(nameof(SignInNotEligible));
         OnPropertyChanged(nameof(SignInButton));
+        RaiseBanner();
     }
 
     void RaiseWelcome()
     {
         OnPropertyChanged(nameof(ShowWelcome));
         OnPropertyChanged(nameof(ShowEmptyHotkey));
+    }
+
+    void RaiseBanner()
+    {
+        OnPropertyChanged(nameof(SignedOut));
+        OnPropertyChanged(nameof(Banner));
+        OnPropertyChanged(nameof(HasBanner));
+        OnPropertyChanged(nameof(BannerMessage));
+        OnPropertyChanged(nameof(BannerPrimary));
+        OnPropertyChanged(nameof(BannerIsInfo));
+        OnPropertyChanged(nameof(BannerIsWarning));
+        OnPropertyChanged(nameof(BannerIsError));
+        OnPropertyChanged(nameof(BannerBusy));
+        OnPropertyChanged(nameof(BannerNotBusy));
+        OnPropertyChanged(nameof(BannerTip));
+        OnPropertyChanged(nameof(Attention));
     }
 
     void MarkDirty()
@@ -1177,6 +1328,8 @@ Manual = HasManualPositions,
         WelcomeRetired = settingsFile.WelcomeRetired,
         ExtAgentHostId = settingsFile.ExtAgentHostId,
         IssuedClientId = settingsFile.IssuedClientId,
+        ReauthEmail = settingsFile.ReauthEmail,
+        ChosenModel = settingsFile.ChosenModel,
         Theme = ThemeName(theme),
         Backdrop = BackdropName(backdrop),
         HomeMonitor = settingsFile.HomeMonitor,
@@ -1260,6 +1413,14 @@ Manual = HasManualPositions,
             captures.Add(capture);
             if (capture.State == "failed")
                 Tasks.Insert(0, FailedRow(capture));
+            else if (capture.State == "waiting")
+            {
+                var row = new TaskRow(capture.Text, Priority.Medium, Effort.Short, "", capture.Id);
+                row.IsWaiting = true;
+                row.Reason = WaitingReason(capture.Cause);
+                row.LightsDot = capture.Cause != "offline";
+                Tasks.Insert(0, row);
+            }
         }
     }
 
@@ -1367,7 +1528,13 @@ Manual = HasManualPositions,
             var plain = protector.Unprotect(File.ReadAllBytes(tokenPath));
             var file = JsonSerializer.Deserialize(plain, WidgetJsonContext.Default.TokenFile);
             accessToken = file?.AccessToken ?? "";
-            HasConnection = accessToken.Length > 0;
+            refreshToken = file?.RefreshToken ?? "";
+            idToken = file?.IdToken ?? "";
+            clientId = file?.ClientId ?? "";
+        accessExpiresAt = file?.AccessExpiresAt ?? default;
+        refreshExpiresAt = file?.RefreshExpiresAt ?? default;
+        RememberIdentity(idToken);
+        HasConnection = accessToken.Length > 0;
         }
         catch (JsonException)
         {

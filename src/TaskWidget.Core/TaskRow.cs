@@ -51,19 +51,25 @@ public sealed partial class TaskRow : ObservableObject
     public partial bool IsDimmed { get; set; }
 
     [ObservableProperty]
-    public partial bool IsPending { get; private set; }
+    public partial bool IsPending { get; set; }
 
     [ObservableProperty]
-    public partial string PendingText { get; private set; }
+    public partial string PendingText { get; set; } = "";
 
     [ObservableProperty]
-    public partial bool IsFailed { get; private set; }
+    public partial bool IsWaiting { get; set; }
+
+    [ObservableProperty]
+    public partial bool LightsDot { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsFailed { get; set; }
 
     [ObservableProperty]
     public partial bool IsEditingCapture { get; private set; }
 
     [ObservableProperty]
-    public partial string Reason { get; private set; } = "";
+    public partial string Reason { get; set; } = "";
 
     [ObservableProperty]
     public partial string ReasonTip { get; private set; } = "";
@@ -77,9 +83,9 @@ public sealed partial class TaskRow : ObservableObject
 
     public bool IsCaptureRow => IsFailed || IsEditingCapture;
 
-    public bool IsTaskRow => !IsCaptureRow;
+    public bool IsTaskRow => !IsCaptureRow && !IsPending && !IsWaiting;
 
-    public bool NotTask => IsPending || IsCaptureRow;
+    public bool NotTask => IsPending || IsWaiting || IsCaptureRow;
 
     public DateTimeOffset CreatedAt { get; internal set; }
     public int Spoken { get; internal set; }
@@ -107,6 +113,8 @@ public sealed partial class TaskRow : ObservableObject
     {
         IsEditingCapture = false;
         IsFailed = false;
+        IsWaiting = false;
+        LightsDot = false;
         MakeTaskFirst = false;
         Reason = "";
         ReasonTip = "";
