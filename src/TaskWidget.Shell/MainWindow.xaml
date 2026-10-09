@@ -5,6 +5,10 @@
     xmlns:local="using:TaskWidget"
     xmlns:core="using:TaskWidget.Core">
     <Grid x:Name="Host" Background="{ThemeResource SurfaceSolidBrush}">
+        <!-- The prototype's Sizer: gives the content unlimited height, so its size says how tall the window should be. -->
+        <ScrollViewer x:Name="Sizer" HorizontalAlignment="Left" VerticalAlignment="Top"
+                      VerticalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
+                      HorizontalScrollBarVisibility="Hidden" HorizontalScrollMode="Disabled" ZoomMode="Disabled">
         <Grid x:Name="Root" Width="360" Padding="0,0,0,8" HorizontalAlignment="Left" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -231,5 +235,6 @@
                 </Border>
             </Grid>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>

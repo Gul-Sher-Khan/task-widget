@@ -105,6 +105,8 @@ public sealed partial class MainWindow : Window
         Root.KeyDown += Root_KeyDown;
         ApplyUndoMotion();
         Host.SizeChanged += (_, _) => OnHostSize();
+        // The window follows the content: Settings, new Tasks, Details opening (WidgetGrowMs / WidgetShrinkMs).
+        Root.SizeChanged += (_, _) => OnHostSize();
         Model.PropertyChanged += OnModelPropertyChanged;
         Model.RaiseRequested += OnRaiseAgain;
         desktop.Deactivated += OnShellDeactivated;
@@ -207,6 +209,20 @@ public sealed partial class MainWindow : Window
             Model.SettingsOpen = true;
             if (LookLaunch.ShowUpdate && SettingsHost.Children.OfType<SettingsPanel>().FirstOrDefault() is SettingsPanel panel)
                 panel.ScrollToAbout();
+        }
+
+        if (LookLaunch.ToggleSettingsLater)
+        {
+            var toggle = DispatcherQueue.CreateTimer();
+            toggle.Interval = TimeSpan.FromMilliseconds(1500);
+            var presses = 0;
+            toggle.Tick += (_, _) =>
+            {
+                Model.ToggleSettings();
+                if (++presses == 2)
+                    toggle.Stop();
+            };
+            toggle.Start();
         }
 
         if (!LookLaunch.Dictation)
@@ -1068,16 +1084,22 @@ public sealed partial class MainWindow : Window
     // The header and Capture box stay put. Only the task list scrolls, and only after the row cap.
     void ApplyListHeight()
     {
+        // Settings covers the list, so its cap only matters once the list shows again.
+        if (Model.SettingsOpen)
+            return;
+
         var rows = Model.ListMaxHeight;
         var limit = rows;
         if (!double.IsPositiveInfinity(windowCap) && List.ActualHeight > 0)
         {
-            var chrome = HeaderStrip.ActualHeight
-                + BannerHost.ActualHeight
-                + CaptureHost.ActualHeight
-                + WelcomeCard.ActualHeight
-                + EmptyHotkey.ActualHeight
-                + SettingsHost.ActualHeight
+            // A part that was just hidden still reports its old height until the next layout pass.
+            static double Shown(FrameworkElement part) =>
+                part.Visibility == Visibility.Visible ? part.ActualHeight : 0;
+            var chrome = Shown(HeaderStrip)
+                + Shown(BannerHost)
+                + Shown(CaptureHost)
+                + Shown(WelcomeCard)
+                + Shown(EmptyHotkey)
                 + Root.Padding.Top
                 + Root.Padding.Bottom;
             var room = windowCap - chrome;

@@ -21,6 +21,8 @@ static class LookLaunch
     public static bool Active { get; private set; }
     public static bool ContrastPreview { get; private set; }
     public static bool OpenSettings { get; private set; }
+    // LOOK_SETTINGS=2: open Settings once the Widget is placed, then close it, as two clicks on the gear would.
+    public static bool ToggleSettingsLater { get; private set; }
     public static bool ShowUpdate { get; private set; }
     public static bool Dictation { get; private set; }
     public static bool Busy { get; private set; }
@@ -40,6 +42,7 @@ static class LookLaunch
         SignIn = Env("LOOK_SIGNIN");
         ContrastPreview = Env("LOOK_CONTRAST") == 1;
         OpenSettings = Env("LOOK_SETTINGS") == 1;
+        ToggleSettingsLater = Env("LOOK_SETTINGS") == 2;
         ShowUpdate = Env("LOOK_UPDATE") == 1;
         Dictation = Env("LOOK_DICTATION") == 1;
         Busy = Env("LOOK_BUSY") == 1;
