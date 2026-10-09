@@ -570,6 +570,7 @@ sealed class NetworkSwitch : INetwork
 
 sealed class ConnectionHttp : HttpMessageHandler
 {
+    readonly object gate = new();
     readonly List<Held> held = [];
 
     public string Payload { get; set; } = "";
@@ -596,17 +597,28 @@ sealed class ConnectionHttp : HttpMessageHandler
 
     public void Release()
     {
-        var item = held.First();
-        held.Remove(item);
+        Held item;
+        lock (gate)
+        {
+            item = held[0];
+            held.RemoveAt(0);
+        }
+
         item.Done.TrySetResult((ResponseStatus, Payload));
     }
 
     public void ReleaseAll()
     {
         refreshGate.TrySetResult();
-        foreach (var item in held.ToArray())
+        Held[] pending;
+        lock (gate)
+        {
+            pending = held.ToArray();
+            held.Clear();
+        }
+
+        foreach (var item in pending)
             item.Done.TrySetResult((ResponseStatus, Payload));
-        held.Clear();
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -671,16 +683,21 @@ sealed class ConnectionHttp : HttpMessageHandler
             status = 401;
         }
 
-        Calls.Add(new InterpretCall(
-            request.Method.Method,
-            request.RequestUri?.GetLeftPart(UriPartial.Path) ?? "",
-            body,
-            request.Headers.Authorization?.ToString()));
+        var done = new TaskCompletionSource<(int Status, string Body)>();
+        lock (gate)
+        {
+            Calls.Add(new InterpretCall(
+                request.Method.Method,
+                request.RequestUri?.GetLeftPart(UriPartial.Path) ?? "",
+                body,
+                request.Headers.Authorization?.ToString()));
+            if (status != 401)
+                held.Add(new Held(done));
+        }
+
         if (status == 401)
             return new HttpResponseMessage(HttpStatusCode.Unauthorized);
 
-        var done = new TaskCompletionSource<(int Status, string Body)>();
-        held.Add(new Held(done));
         var result = await done.Task;
         return new HttpResponseMessage((HttpStatusCode)result.Status)
         {

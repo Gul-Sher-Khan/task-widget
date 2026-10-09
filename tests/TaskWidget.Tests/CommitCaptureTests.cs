@@ -174,6 +174,7 @@ public sealed class CommitCaptureTests
 
 sealed class ManualClock : IClock
 {
+    readonly object gate = new();
     readonly List<Entry> pending = [];
     readonly DateTimeOffset start;
     long now;
@@ -185,32 +186,59 @@ sealed class ManualClock : IClock
 
     public ManualClock(DateTimeOffset start) => this.start = start;
 
-    public DateTimeOffset UtcNow => start.AddMilliseconds(now);
+    public DateTimeOffset UtcNow
+    {
+        get
+        {
+            lock (gate)
+                return start.AddMilliseconds(now);
+        }
+    }
 
     public DateTimeOffset Now => UtcNow;
 
-    public void Set(DateTimeOffset time) => now = (long)(time - start).TotalMilliseconds;
+    public void Set(DateTimeOffset time)
+    {
+        lock (gate)
+            now = (long)(time - start).TotalMilliseconds;
+    }
 
     public IDisposable Schedule(TimeSpan delay, Action callback)
     {
-        var entry = new Entry(now + (long)delay.TotalMilliseconds, callback);
-        pending.Add(entry);
-        return new Handle(this, entry);
+        lock (gate)
+        {
+            var entry = new Entry(now + (long)delay.TotalMilliseconds, callback);
+            pending.Add(entry);
+            return new Handle(this, entry);
+        }
     }
 
-    public void Cancel() => pending.Clear();
+    public void Cancel()
+    {
+        lock (gate)
+            pending.Clear();
+    }
 
     public void Advance(TimeSpan by)
     {
-        now += (long)by.TotalMilliseconds;
-        var due = pending.Where(item => item.Due <= now).ToArray();
-        foreach (var item in due)
-            pending.Remove(item);
+        Entry[] due;
+        lock (gate)
+        {
+            now += (long)by.TotalMilliseconds;
+            due = pending.Where(item => item.Due <= now).ToArray();
+            foreach (var item in due)
+                pending.Remove(item);
+        }
+
         foreach (var item in due)
             item.Callback();
     }
 
-    void Cancel(Entry entry) => pending.Remove(entry);
+    void Cancel(Entry entry)
+    {
+        lock (gate)
+            pending.Remove(entry);
+    }
 
     sealed class Entry(long due, Action callback)
     {

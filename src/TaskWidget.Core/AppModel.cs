@@ -47,7 +47,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     readonly IBrowserLauncher? browser;
     readonly IDataProtector? protector;
     readonly object gate = new();
-    readonly object rows = new();
+    readonly object placement = new();
     SettingsFile settingsFile = new() { SchemaVersion = 1 };
     readonly Dictionary<TaskRow, DateTimeOffset> created = [];
     readonly Dictionary<TaskRow, int> spoken = [];
@@ -1382,6 +1382,7 @@ Manual = HasManualPositions,
             Id = capture.Id,
             Text = capture.Text,
             Interpreted = capture.Interpreted,
+            Correction = capture.Correction,
             State = capture.State,
             Cause = capture.Cause,
         }).ToList(),
@@ -1659,7 +1660,7 @@ Manual = HasManualPositions,
     // New, edited and un-completed Tasks all land here.
     void Place(TaskRow task, DateTimeOffset at, int spokenIndex)
     {
-        lock (rows)
+        lock (placement)
         {
             task.CreatedAt = at;
             task.Spoken = spokenIndex;

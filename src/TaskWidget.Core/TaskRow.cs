@@ -45,6 +45,11 @@ public sealed partial class TaskRow : ObservableObject
 
     public string Capture { get; }
 
+    public bool IsReinterpret { get; private set; }
+
+    [ObservableProperty]
+    public partial bool IsDimmed { get; set; }
+
     [ObservableProperty]
     public partial bool IsPending { get; set; }
 
@@ -93,6 +98,17 @@ public sealed partial class TaskRow : ObservableObject
     [ObservableProperty]
     public partial bool IsDone { get; set; }
 
+    public void MarkReinterpret() => IsReinterpret = true;
+
+    public void BeginReinterpretEdit()
+    {
+        MarkReinterpret();
+        IsPending = false;
+        IsFailed = false;
+        IsEditingCapture = true;
+        RaiseKind();
+    }
+
     public void BeginInterpret()
     {
         IsEditingCapture = false;
@@ -102,7 +118,7 @@ public sealed partial class TaskRow : ObservableObject
         MakeTaskFirst = false;
         Reason = "";
         ReasonTip = "";
-        PendingText = "Interpreting…";
+        PendingText = IsReinterpret ? "Re-interpreting…" : "Interpreting…";
         IsPending = true;
         RaiseKind();
     }
