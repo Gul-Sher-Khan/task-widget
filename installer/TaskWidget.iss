@@ -43,8 +43,14 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=
 MinVersion=10.0.22000
+; Each installer only runs where its build runs: the ARM64 app is not an x64 app.
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 OutputBaseFilename=TaskWidget-{#AppVersion}-{#Arch}
 OutputDir=..\artifacts\installers
 Compression=lzma2/ultra64
