@@ -163,49 +163,11 @@ static class CaptureContract
             return false;
         if (!item.TryGetProperty("effort", out var effort) || effort.GetString() is not string effortText)
             return false;
-        if (!TryPriority(priorityText, out var parsedPriority) || !TryEffort(effortText, out var parsedEffort))
+        if (!Scale.TryPriority(priorityText, out var parsedPriority) || !Scale.TryEffort(effortText, out var parsedEffort))
             return false;
 
         task = new ParsedTask(titleText, detailsText, parsedPriority, parsedEffort);
         return true;
-    }
-
-    static bool TryPriority(string value, out Priority priority)
-    {
-        switch (value)
-        {
-            case "high":
-                priority = Priority.High;
-                return true;
-            case "medium":
-                priority = Priority.Medium;
-                return true;
-            case "low":
-                priority = Priority.Low;
-                return true;
-            default:
-                priority = default;
-                return false;
-        }
-    }
-
-    static bool TryEffort(string value, out Effort effort)
-    {
-        switch (value)
-        {
-            case "quick":
-                effort = Effort.Quick;
-                return true;
-            case "short":
-                effort = Effort.Short;
-                return true;
-            case "long":
-                effort = Effort.Long;
-                return true;
-            default:
-                effort = default;
-                return false;
-        }
     }
 
     // Same replacements as the v4 parse: a leading ``` or ```json fence, and a trailing fence.

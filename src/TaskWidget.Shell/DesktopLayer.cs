@@ -361,6 +361,9 @@ sealed partial class DesktopLayer : IDisposable
         if (msg == PInvoke.WM_WINDOWPOSCHANGING)
             AdjustZOrder(lParam);
 
+        if (msg == PInvoke.WM_ENDSESSION && wParam.Value != 0)
+            model.FlushPending();
+
         return PInvoke.DefSubclassProc(window, msg, wParam, lParam);
     }
 

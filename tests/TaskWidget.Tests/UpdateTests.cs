@@ -17,7 +17,7 @@ public sealed class UpdateTests
         var model = new AppModel(folder, new ManualClock(), http: handler);
         try
         {
-            Assert.True(model.UpdChecking);
+            Assert.True(model.UpdateChecking);
             Assert.Equal("Checking for updates…", model.AboutStatus);
 
             handler.Release(Json("""
@@ -39,8 +39,8 @@ public sealed class UpdateTests
             Assert.False(sent.HasAuthorization);
             Assert.False(sent.HasContent);
             Assert.Equal("1.2.0", model.NewVersion);
-            Assert.True(model.UpdAvailable);
-            Assert.False(model.UpdChecking);
+            Assert.True(model.UpdateAvailable);
+            Assert.False(model.UpdateChecking);
             Assert.Equal("Version 1.2.0 is available", model.AboutStatus);
             Assert.Equal("Checked just now", model.CheckedWhen);
         }
@@ -73,7 +73,7 @@ public sealed class UpdateTests
 
             Assert.Equal("1.10.0", model.NewVersion);
             Assert.Equal("Version 1.10.0 is available", model.AboutStatus);
-            Assert.True(model.UpdAvailable);
+            Assert.True(model.UpdateAvailable);
         }
         finally
         {
@@ -101,7 +101,7 @@ public sealed class UpdateTests
             await model.UpdateCheck;
 
             Assert.Equal("", model.NewVersion);
-            Assert.True(model.UpdCurrent);
+            Assert.True(model.UpdateCurrent);
             Assert.Equal("You're up to date", model.AboutStatus);
             Assert.Equal("Checked just now", model.CheckedWhen);
         }
@@ -126,7 +126,7 @@ public sealed class UpdateTests
             await model.UpdateCheck;
 
             Assert.True(model.UpdFailed);
-            Assert.False(model.UpdAvailable);
+            Assert.False(model.UpdateAvailable);
             Assert.Equal("Couldn't check for updates", model.AboutStatus);
             Assert.Equal("No connection. Will try again later.", model.CheckedWhen);
         }

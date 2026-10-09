@@ -178,13 +178,18 @@ sealed class ManualClock : IClock
     readonly List<Entry> pending = [];
     readonly DateTimeOffset start;
     long now;
+    TimeSpan localOffset;
 
     public ManualClock()
         : this(new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero))
     {
     }
 
-    public ManualClock(DateTimeOffset start) => this.start = start;
+    public ManualClock(DateTimeOffset start)
+    {
+        this.start = start;
+        localOffset = start.Offset;
+    }
 
     public DateTimeOffset UtcNow
     {
@@ -195,12 +200,23 @@ sealed class ManualClock : IClock
         }
     }
 
-    public DateTimeOffset Now => UtcNow;
+    // Now carries the offset of the last Set, so a calendar date can differ from the UTC day.
+    public DateTimeOffset Now
+    {
+        get
+        {
+            lock (gate)
+                return start.AddMilliseconds(now).ToOffset(localOffset);
+        }
+    }
 
     public void Set(DateTimeOffset time)
     {
         lock (gate)
+        {
             now = (long)(time - start).TotalMilliseconds;
+            localOffset = time.Offset;
+        }
     }
 
     public IDisposable Schedule(TimeSpan delay, Action callback)

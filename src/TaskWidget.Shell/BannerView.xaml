@@ -14,11 +14,11 @@
             </Grid.ColumnDefinitions>
             <Grid Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,0,0">
                 <FontIcon Glyph="&#xE946;" FontSize="14" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                          Visibility="{x:Bind local:F.Both(Model.BannerIsInfo, Model.BannerNotBusy), Mode=OneWay}" />
+                          Visibility="{x:Bind local:F.VisibleWhenBoth(Model.BannerIsInfo, Model.BannerNotBusy), Mode=OneWay}" />
                 <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                          Visibility="{x:Bind local:F.Both(Model.BannerIsWarning, Model.BannerNotBusy), Mode=OneWay}" />
+                          Visibility="{x:Bind local:F.VisibleWhenBoth(Model.BannerIsWarning, Model.BannerNotBusy), Mode=OneWay}" />
                 <FontIcon Glyph="&#xE783;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                          Visibility="{x:Bind local:F.Both(Model.BannerIsError, Model.BannerNotBusy), Mode=OneWay}" />
+                          Visibility="{x:Bind local:F.VisibleWhenBoth(Model.BannerIsError, Model.BannerNotBusy), Mode=OneWay}" />
                 <ProgressRing Width="14" Height="14" IsActive="{x:Bind Model.BannerBusy, Mode=OneWay}"
                               AutomationProperties.AccessibilityView="Raw"
                               Visibility="{x:Bind Model.BannerBusy, Mode=OneWay}" />

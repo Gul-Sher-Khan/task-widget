@@ -5,10 +5,6 @@
     xmlns:local="using:TaskWidget"
     xmlns:core="using:TaskWidget.Core">
     <Grid x:Name="Host" Background="{ThemeResource SurfaceSolidBrush}">
-        <ScrollViewer x:Name="WidgetScroll" HorizontalAlignment="Left" VerticalAlignment="Top"
-                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled"
-                      ZoomMode="Disabled" IsTabStop="False" Background="Transparent">
         <Grid x:Name="Root" Width="360" Padding="0,0,0,8" HorizontalAlignment="Left" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -74,7 +70,7 @@
 
             <Grid x:Name="BannerHost" Grid.Row="1" Visibility="{x:Bind local:Row.When(Model.HasBanner), Mode=OneWay}" />
 
-            <Grid Grid.Row="2" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
+            <Grid x:Name="CaptureHost" Grid.Row="2" Margin="12,4,12,6" Visibility="{x:Bind Model.ShowingCapture, Mode=OneWay}">
                 <TextBox x:Name="Capture" MinHeight="36" Padding="10,7,32,6" CornerRadius="6"
                          AcceptsReturn="True" TextWrapping="Wrap" FontSize="13.5"
                          AutomationProperties.Name="{x:Bind Model.CapturePlaceholder, Mode=OneWay}"
@@ -97,15 +93,14 @@
                              Visibility="{x:Bind local:Row.When(Model.WaitingDictation), Mode=OneWay}" />
             </Grid>
 
-            <local:Welcome Grid.Row="3" Card="True" local:Fx.Enter="True"
+            <local:Welcome x:Name="WelcomeCard" Grid.Row="3" Card="True" local:Fx.Enter="True"
                            Model="{x:Bind Model}"
-                           Visibility="{x:Bind local:F.Both(Model.ShowWelcome, Model.ShowingTasks), Mode=OneWay}" />
+                           Visibility="{x:Bind local:F.VisibleWhenBoth(Model.ShowWelcome, Model.ShowingTasks), Mode=OneWay}" />
 
             <Grid Grid.Row="4">
-                <ListView x:Name="List" MaxHeight="{x:Bind Model.ListMaxHeight, Mode=OneWay}" Padding="6,0,6,0"
+                <ListView x:Name="List" Padding="6,0,6,0"
                           ItemsSource="{x:Bind Model.VisibleTasks, Mode=OneWay}"
-                          SelectedIndex="{x:Bind Model.SelectedIndex, Mode=TwoWay}"
-                          SelectionMode="Single" IsItemClickEnabled="True" ItemClick="List_ItemClick"
+                          SelectionMode="None" IsItemClickEnabled="True" ItemClick="List_ItemClick"
                           AutomationProperties.Name="Tasks"
                           ContainerContentChanging="List_ContainerContentChanging"
                           CanDragItems="{x:Bind Model.Editable, Mode=OneWay}"
@@ -146,7 +141,7 @@
 
                             <Button Style="{StaticResource Bare}" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
                                     Click="Check_Click" AutomationProperties.Name="Tick"
-                                    Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}"
+                                    Visibility="{x:Bind local:F.Hidden(IsPending), Mode=OneWay}"
                                     IsEnabled="{x:Bind local:Row.Editable(IsDone), Mode=OneWay}">
                                 <Grid>
                                     <Ellipse Width="17" Height="17" StrokeThickness="1.5" Stroke="{ThemeResource MutedTextBrush}" />
@@ -185,7 +180,7 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Top"
-                                        Visibility="{x:Bind local:F.NV(IsPending), Mode=OneWay}">
+                                        Visibility="{x:Bind local:F.Hidden(IsPending), Mode=OneWay}">
                                 <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource FaintTextBrush}" Margin="0,0,4,0"
                                           Visibility="{x:Bind local:Row.When(HasDetails), Mode=OneWay}" />
                                 <Button Style="{StaticResource Bare}" Padding="4,3,4,3" MinWidth="26" Click="Effort_Click"
@@ -228,13 +223,12 @@
                 </Border>
             </Grid>
 
-            <local:Welcome Grid.Row="5" Card="False"
+            <local:Welcome x:Name="EmptyHotkey" Grid.Row="5" Card="False"
                            Model="{x:Bind Model}"
-                           Visibility="{x:Bind local:F.Both(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
+                           Visibility="{x:Bind local:F.VisibleWhenBoth(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
 
             <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
-        </ScrollViewer>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
               Background="Transparent" Visibility="Collapsed" PointerPressed="Dock_PointerPressed"
@@ -247,14 +241,14 @@
                 </Grid.ColumnDefinitions>
                 <Grid Width="18" Height="18">
                     <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                              Visibility="{x:Bind local:F.NV(Model.IsProcessing), Mode=OneWay}" />
+                              Visibility="{x:Bind local:F.Hidden(Model.IsProcessing), Mode=OneWay}" />
                     <ProgressRing Width="16" Height="16" IsActive="{x:Bind Model.IsProcessing, Mode=OneWay}"
                                   AutomationProperties.AccessibilityView="Raw"
                                   Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
                 </Grid>
                 <TextBlock Grid.Column="1" Text="Capture a thought…" FontSize="13.5"
                            Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center"
-                           Visibility="{x:Bind local:F.NV(Model.IsProcessing), Mode=OneWay}" />
+                           Visibility="{x:Bind local:F.Hidden(Model.IsProcessing), Mode=OneWay}" />
                 <TextBlock Grid.Column="1" Text="Interpreting…" FontSize="13.5"
                            Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center"
                            Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />

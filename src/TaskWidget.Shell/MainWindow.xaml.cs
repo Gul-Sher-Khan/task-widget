@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Window
     bool arranging;
     bool capping;
     bool sizingDpi;
+    double windowCap = double.PositiveInfinity;
     double snapX1;
     double snapY1;
     double snapX2;
@@ -89,7 +90,6 @@ public sealed partial class MainWindow : Window
         if (Model.Docked)
         {
             Root.Visibility = Visibility.Collapsed;
-            WidgetScroll.Visibility = Visibility.Collapsed;
             DockRoot.Visibility = Visibility.Visible;
         }
 
@@ -97,6 +97,7 @@ public sealed partial class MainWindow : Window
         Host.PreviewKeyDown += Host_PreviewKeyDown;
         List.PreviewKeyDown += List_PreviewKeyDown;
         List.RightTapped += List_RightTapped;
+        List.MaxHeight = Model.ListMaxHeight;
         List.DragItemsStarting += List_DragItemsStarting;
         List.DragItemsCompleted += List_DragItemsCompleted;
         Root.KeyDown += Root_KeyDown;
@@ -304,17 +305,22 @@ public sealed partial class MainWindow : Window
             return;
 
         var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
-        if (ctrl && List.SelectedIndex >= 0)
+        if (ctrl && Model.SelectedIndex >= 0 && Model.SelectedIndex < Model.Tasks.Count)
         {
+            var from = Model.SelectedIndex;
+            var moving = Model.Tasks[from];
             if (e.Key == VirtualKey.Up)
-                Model.MoveTo(List.SelectedIndex, List.SelectedIndex - 1);
+                Model.MoveTo(from, from - 1);
             else if (e.Key == VirtualKey.Down)
-                Model.MoveTo(List.SelectedIndex, List.SelectedIndex + 1);
+                Model.MoveTo(from, from + 1);
             else
                 ctrl = false;
 
             if (ctrl)
             {
+                var now = Model.Tasks.IndexOf(moving);
+                if (now >= 0)
+                    Model.SelectedIndex = now;
                 e.Handled = true;
                 return;
             }
@@ -351,7 +357,7 @@ public sealed partial class MainWindow : Window
 
     void List_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskRow task)
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not TaskRow task || task.NotTask || Model.ReadOnly)
             return;
 
         var edit = new MenuFlyoutItem
@@ -360,6 +366,12 @@ public sealed partial class MainWindow : Window
             Icon = new FontIcon { Glyph = "\uE70F" },
         };
         edit.Click += (_, _) => Model.BeginTitleEdit(task);
+        var again = new MenuFlyoutItem
+        {
+            Text = "Re-interpret Capture…",
+            Icon = new FontIcon { Glyph = "\uE72C" },
+        };
+        again.Click += (_, _) => Model.Reinterpret(task);
         var item = new MenuFlyoutItem
         {
             Text = "Delete",
@@ -368,6 +380,7 @@ public sealed partial class MainWindow : Window
         item.Click += (_, _) => Model.Delete(task);
         var menu = new MenuFlyout();
         menu.Items.Add(edit);
+        menu.Items.Add(again);
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(item);
         menu.ShowAt(e.OriginalSource as FrameworkElement, e.GetPosition(e.OriginalSource as UIElement));
@@ -485,6 +498,23 @@ public sealed partial class MainWindow : Window
         Model.Dock();
     }
 
+    void RevealSelected()
+    {
+        var rows = Model.VisibleTasks;
+        if (Model.SelectedIndex < 0 || Model.SelectedIndex >= rows.Count)
+            return;
+        var item = rows[Model.SelectedIndex];
+        List.ScrollIntoView(item);
+        if (List.ContainerFromItem(item) is ListViewItem container)
+            container.Focus(FocusState.Keyboard);
+        else
+            List.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (List.ContainerFromItem(item) is ListViewItem later)
+                    later.Focus(FocusState.Keyboard);
+            });
+    }
+
     void Dock_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (driving || !Model.Docked)
@@ -495,6 +525,18 @@ public sealed partial class MainWindow : Window
 
     void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(AppModel.SelectedIndex))
+        {
+            RevealSelected();
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppModel.ListMaxHeight))
+        {
+            ApplyListHeight();
+            return;
+        }
+
         if (e.PropertyName == nameof(AppModel.RestartRequested) && Model.RestartRequested)
         {
             if (DispatcherQueue.HasThreadAccess)
@@ -584,7 +626,6 @@ public sealed partial class MainWindow : Window
             if (Model.FullScreenApp)
             {
                 Root.Visibility = Visibility.Collapsed;
-                WidgetScroll.Visibility = Visibility.Collapsed;
                 DockRoot.Visibility = Visibility.Visible;
                 current = DockHeightDip;
                 Place(DockClient());
@@ -752,7 +793,6 @@ public sealed partial class MainWindow : Window
                 if (Model.Docked)
                 {
                     Root.Visibility = Visibility.Collapsed;
-                    WidgetScroll.Visibility = Visibility.Collapsed;
                     DockRoot.Visibility = Visibility.Visible;
                     current = DockHeightDip;
                     Place(DockClient());
@@ -817,7 +857,6 @@ public sealed partial class MainWindow : Window
         ElementCompositionPreview.SetIsTranslationEnabled(DockRoot, true);
         visual.Opacity = 0;
         Root.Visibility = Visibility.Collapsed;
-        WidgetScroll.Visibility = Visibility.Collapsed;
         DockRoot.Visibility = Visibility.Visible;
         AnimateContent(DockRoot, show: true, Ms("DockInMs"));
         SpringIn(DockRoot);
@@ -837,7 +876,6 @@ public sealed partial class MainWindow : Window
         desktop.PrepareWidgetChrome();
         Activate();
         AnimateContent(DockRoot, show: false, Ms("DockOutMs"));
-        WidgetScroll.Visibility = Visibility.Visible;
         Root.Visibility = Visibility.Visible;
         Root.Measure(new Size(Root.Width, double.PositiveInfinity));
         Root.UpdateLayout();
@@ -1022,16 +1060,17 @@ public sealed partial class MainWindow : Window
         {
             var monitor = Placement();
             if (monitor is null || Host.XamlRoot is null)
+                windowCap = double.PositiveInfinity;
+            else
             {
-                WidgetScroll.MaxHeight = double.PositiveInfinity;
-                return;
+                double scale = monitor.Dpi > 0 ? monitor.Dpi / 96.0 : Scale;
+                int margin = (int)Math.Ceiling(MarginDip * scale);
+                int capPx = monitor.Work.Height - margin;
+                double capDip = capPx / scale;
+                windowCap = capDip < 120 ? 120 : capDip;
             }
 
-            double scale = monitor.Dpi > 0 ? monitor.Dpi / 96.0 : Scale;
-            int margin = (int)Math.Ceiling(MarginDip * scale);
-            int capPx = monitor.Work.Height - margin;
-            double capDip = capPx / scale;
-            WidgetScroll.MaxHeight = capDip < 120 ? 120 : capDip;
+            ApplyListHeight();
         }
         finally
         {
@@ -1039,9 +1078,33 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // The header and Capture box stay put. Only the task list scrolls, and only after the row cap.
+    void ApplyListHeight()
+    {
+        var rows = Model.ListMaxHeight;
+        var limit = rows;
+        if (!double.IsPositiveInfinity(windowCap) && List.ActualHeight > 0)
+        {
+            var chrome = HeaderStrip.ActualHeight
+                + BannerHost.ActualHeight
+                + CaptureHost.ActualHeight
+                + WelcomeCard.ActualHeight
+                + EmptyHotkey.ActualHeight
+                + SettingsHost.ActualHeight
+                + Root.Padding.Top
+                + Root.Padding.Bottom;
+            var room = windowCap - chrome;
+            if (room >= 37)
+                limit = Math.Min(rows, room);
+        }
+
+        if (double.IsNaN(List.MaxHeight) || Math.Abs(List.MaxHeight - limit) > 0.5)
+            List.MaxHeight = limit;
+    }
+
     double Capped(double heightDip)
     {
-        var max = WidgetScroll.MaxHeight;
+        var max = windowCap;
         if (double.IsNaN(max) || double.IsInfinity(max) || max <= 0)
             return heightDip;
         return Math.Min(heightDip, max);

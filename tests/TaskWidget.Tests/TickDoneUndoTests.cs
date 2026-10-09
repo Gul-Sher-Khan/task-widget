@@ -290,7 +290,7 @@ public sealed class TickDoneUndoTests
         Assert.True(world.Model.HasManualPositions);
         Assert.Equal(["buy milk", "email Sarah"], world.Model.Tasks.Select(task => task.Title).ToArray());
 
-        world.Model.Resort();
+        world.Model.ReSort();
         Assert.False(world.Model.UndoVisible);
         Assert.False(world.Model.HasManualPositions);
         Assert.Equal(["email Sarah", "buy milk"], world.Model.Tasks.Select(task => task.Title).ToArray());

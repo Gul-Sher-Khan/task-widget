@@ -283,6 +283,26 @@ public sealed class InterpretCaptureTests
     }
 
     [Fact]
+    public async Task The_instructions_use_the_local_calendar_date_not_the_utc_day()
+    {
+        using var world = new InterpretWorld();
+        // 00:30 at UTC+5 is still Wednesday 19:30 UTC on 7 Oct.
+        world.Clock.Set(new DateTimeOffset(2026, 10, 8, 0, 30, 0, TimeSpan.FromHours(5)));
+        world.Reply("""{"tasks":[{"title":"Buy milk","details":"","priority":"medium","effort":"short"}]}""");
+
+        world.Model.UpdateDraft("buy milk");
+        var committing = world.Model.CommitCapture();
+
+        using var doc = JsonDocument.Parse(Assert.Single(world.Http.Calls).Body);
+        var instructions = doc.RootElement.GetProperty("instructions").GetString();
+        Assert.Contains("Today is Thursday 8 Oct 2026.", instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("Wednesday 7 Oct 2026", instructions, StringComparison.Ordinal);
+
+        world.Release();
+        await committing;
+    }
+
+    [Fact]
     public async Task The_request_sends_only_the_capture_in_the_v4_shape()
     {
         using var world = new InterpretWorld();

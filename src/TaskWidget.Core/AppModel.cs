@@ -392,7 +392,7 @@ public void Move(TaskRow task, int index)
             pill: false);
     }
 
-    public void Resort()
+    public void ReSort()
     {
         if (ReadOnly)
             return;
@@ -521,7 +521,7 @@ public void Move(TaskRow task, int index)
 
         var old = task.Priority;
         var wasSet = task.UserSetPriority;
-        var next = (Priority)(((int)old + 1) % 3);
+        var next = Scale.Cycle(old);
         task.Priority = next;
         task.UserSetPriority = true;
         Replace(
@@ -545,7 +545,7 @@ public void Move(TaskRow task, int index)
 
         var old = task.Effort;
         var wasSet = task.UserSetEffort;
-        var next = (Effort)(((int)old + 1) % 3);
+        var next = Scale.Cycle(old);
         task.Effort = next;
         task.UserSetEffort = true;
         Replace(
@@ -791,7 +791,7 @@ public void Move(TaskRow task, int index)
         }
     }
 
-    public double ListMaxHeight => rowsBeforeScrolling * 37d + 4d;
+    public double ListMaxHeight => Scale.ListMaxHeight(rowsBeforeScrolling);
 
     public double RowsBeforeScrollingValue
     {
@@ -812,11 +812,11 @@ public void Move(TaskRow task, int index)
 
     public string PrivacyUrl => "https://github.com/Gul-Sher-Khan/task-widget#privacy";
 
-    public bool UpdChecking => phase == UpdatePhase.Checking;
+    public bool UpdateChecking => phase == UpdatePhase.Checking;
 
-    public bool UpdCurrent => phase == UpdatePhase.Current;
+    public bool UpdateCurrent => phase == UpdatePhase.Current;
 
-    public bool UpdAvailable => phase == UpdatePhase.Available;
+    public bool UpdateAvailable => phase == UpdatePhase.Available;
 
     public bool UpdFailed => phase == UpdatePhase.Failed;
 
@@ -1266,7 +1266,12 @@ public void MoveTo(int from, int to)
             pill: false);
     }
 
-    public void ReSort() => Resort();
+    public void FlushPending()
+    {
+        saveTimer?.Dispose();
+        saveTimer = null;
+        WriteIfDirty();
+    }
 
     public void Dispose()
     {
@@ -1277,7 +1282,7 @@ public void MoveTo(int from, int to)
         checking.Cancel();
         CancelSignIn();
         clock.Cancel();
-        WriteIfDirty();
+        FlushPending();
         httpClient?.Dispose();
     }
 
@@ -1833,21 +1838,15 @@ Manual = HasManualPositions,
         _ => "mica",
     };
 
-    static Priority ParsePriority(string value) => value switch
-    {
-        "high" => Priority.High,
-        "medium" => Priority.Medium,
-        "low" => Priority.Low,
-        _ => throw new InvalidDataException($"Unknown priority \"{value}\"."),
-    };
+    static Priority ParsePriority(string value) =>
+        Scale.TryPriority(value, out var priority)
+            ? priority
+            : throw new InvalidDataException($"Unknown priority \"{value}\".");
 
-    static Effort ParseEffort(string value) => value switch
-    {
-        "quick" => Effort.Quick,
-        "short" => Effort.Short,
-        "long" => Effort.Long,
-        _ => throw new InvalidDataException($"Unknown effort \"{value}\"."),
-    };
+    static Effort ParseEffort(string value) =>
+        Scale.TryEffort(value, out var effort)
+            ? effort
+            : throw new InvalidDataException($"Unknown effort \"{value}\".");
 
     DateTimeOffset CreatedOf(TaskRow task) =>
         created.TryGetValue(task, out var at) ? at : task.CreatedAt;
@@ -2095,9 +2094,9 @@ Manual = HasManualPositions,
 
     void NotifyUpdate()
     {
-        OnPropertyChanged(nameof(UpdChecking));
-        OnPropertyChanged(nameof(UpdCurrent));
-        OnPropertyChanged(nameof(UpdAvailable));
+        OnPropertyChanged(nameof(UpdateChecking));
+        OnPropertyChanged(nameof(UpdateCurrent));
+        OnPropertyChanged(nameof(UpdateAvailable));
         OnPropertyChanged(nameof(UpdFailed));
         OnPropertyChanged(nameof(UpdDownloading));
         OnPropertyChanged(nameof(DownloadStarted));

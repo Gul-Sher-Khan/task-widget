@@ -5,7 +5,7 @@ public sealed class SystemClock : IClock
     readonly object gate = new();
     readonly List<Timer> timers = [];
 
-    public DateTimeOffset Now => DateTimeOffset.UtcNow;
+    public DateTimeOffset Now => DateTimeOffset.Now;
 
     public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
 

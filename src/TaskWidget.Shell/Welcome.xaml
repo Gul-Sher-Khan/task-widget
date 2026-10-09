@@ -8,7 +8,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:TaskWidget">
     <Grid>
-        <StackPanel Padding="16,6,16,12" Spacing="10" Visibility="{x:Bind local:F.V(Card)}">
+        <StackPanel Padding="16,6,16,12" Spacing="10" Visibility="{x:Bind local:F.Visible(Card)}">
             <local:SignInBlock x:Name="SignIn" />
             <TextBlock FontSize="11.5" TextWrapping="Wrap" Foreground="{ThemeResource FaintTextBrush}">
                 <Run Text="Only what you capture and today's date are sent to ChatGPT. Nothing else leaves this PC." />
@@ -24,6 +24,6 @@
             </StackPanel>
         </StackPanel>
         <TextBlock Text="{x:Bind local:F.TapLine(Model.Hotkey), Mode=OneWay}" HorizontalAlignment="Center" Margin="0,18,0,22"
-                   Foreground="{ThemeResource FaintTextBrush}" Visibility="{x:Bind local:F.NV(Card)}" />
+                   Foreground="{ThemeResource FaintTextBrush}" Visibility="{x:Bind local:F.Hidden(Card)}" />
     </Grid>
 </UserControl>

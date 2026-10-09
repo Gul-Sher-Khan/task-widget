@@ -4,11 +4,12 @@ namespace TaskWidget;
 
 public static class F
 {
-    public static Visibility V(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
+    public static Visibility Visible(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
 
-    public static Visibility NV(bool value) => value ? Visibility.Collapsed : Visibility.Visible;
+    public static Visibility Hidden(bool hidden) => hidden ? Visibility.Collapsed : Visibility.Visible;
 
-    public static Visibility Both(bool a, bool b) => a && b ? Visibility.Visible : Visibility.Collapsed;
+    public static Visibility VisibleWhenBoth(bool first, bool second) =>
+        first && second ? Visibility.Visible : Visibility.Collapsed;
 
     public static string TapLine(string hotkey) => $"Tap {hotkey.Replace(" + ", "+")} anywhere to capture";
 

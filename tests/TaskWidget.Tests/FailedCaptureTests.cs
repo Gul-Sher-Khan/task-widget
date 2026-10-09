@@ -128,6 +128,60 @@ public sealed class FailedCaptureTests
     }
 
     [Fact]
+    public async Task A_client_error_is_not_retried_and_is_not_called_a_timeout()
+    {
+        using var world = new InterpretWorld();
+        world.Http.StatusCode = HttpStatusCode.BadRequest;
+        world.Http.FailureBody = """{"error":{"message":"invalid request"}}""";
+
+        world.Model.UpdateDraft("buy milk");
+        var committing = world.Model.CommitCapture();
+        world.Release();
+        await committing;
+
+        var failed = Assert.Single(world.Model.Tasks);
+        Assert.True(failed.IsFailed);
+        Assert.Equal("buy milk", failed.Title);
+        Assert.Equal("", failed.Reason);
+        Assert.Equal("", failed.ReasonTip);
+        Assert.NotEqual("Couldn't reach ChatGPT", failed.Reason);
+        Assert.NotEqual("No reply within 30 seconds, after one retry.", failed.ReasonTip);
+
+        world.Clock.Advance(TimeSpan.FromSeconds(10));
+        Assert.Single(world.Http.Calls);
+
+        var again = new AppModel(world.Folder, new ManualClock());
+        var restored = Assert.Single(again.Tasks);
+        Assert.True(restored.IsFailed);
+        Assert.Equal("", restored.Reason);
+        Assert.Equal("", restored.ReasonTip);
+        again.Dispose();
+    }
+
+    [Fact]
+    public async Task A_forbidden_response_that_is_not_the_plan_is_not_a_timeout()
+    {
+        using var world = new InterpretWorld();
+        world.Http.StatusCode = HttpStatusCode.Forbidden;
+        world.Http.FailureBody = """{"error":{"code":"insufficient_quota"}}""";
+
+        world.Model.UpdateDraft("buy milk");
+        var committing = world.Model.CommitCapture();
+        world.Release();
+        await committing;
+
+        var failed = Assert.Single(world.Model.Tasks);
+        Assert.True(failed.IsFailed);
+        Assert.Equal("", failed.Reason);
+        Assert.Equal("", failed.ReasonTip);
+        Assert.NotEqual("Your ChatGPT plan can't be used here", failed.Reason);
+        Assert.NotEqual("Couldn't reach ChatGPT", failed.Reason);
+
+        world.Clock.Advance(TimeSpan.FromSeconds(5));
+        Assert.Single(world.Http.Calls);
+    }
+
+    [Fact]
     public async Task A_rate_limit_is_not_retried()
     {
         using var world = new InterpretWorld();

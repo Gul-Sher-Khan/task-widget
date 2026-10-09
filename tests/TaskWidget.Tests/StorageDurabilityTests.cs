@@ -290,6 +290,34 @@ public sealed class StorageDurabilityTests
     }
 
     [Fact]
+    public void Shutdown_flush_writes_a_save_that_is_still_waiting_on_the_debounce()
+    {
+        var folder = Directory.CreateTempSubdirectory("tw-shutdown-flush").FullName;
+        try
+        {
+            var clock = new ManualClock();
+            var model = new AppModel(folder, clock);
+            model.UpdateDraft("email Sarah before shutdown");
+            var path = Path.Combine(folder, "tasks.json");
+            Assert.False(File.Exists(path));
+
+            model.FlushPending();
+
+            using var saved = JsonDocument.Parse(File.ReadAllText(path));
+            Assert.Equal("email Sarah before shutdown", saved.RootElement.GetProperty("draft").GetString());
+            model.Dispose();
+
+            var again = new AppModel(folder, new ManualClock());
+            Assert.Equal("email Sarah before shutdown", again.CaptureText);
+            again.Dispose();
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void One_banner_shows_at_a_time_with_newer_version_ahead_of_signed_out_ahead_of_recovery()
     {
         var folders = new List<string>();

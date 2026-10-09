@@ -170,9 +170,7 @@ public sealed partial class AppModel
     void Flush()
     {
         MarkDirty();
-        saveTimer?.Dispose();
-        saveTimer = null;
-        WriteIfDirty();
+        FlushPending();
     }
 
     async Task<CaptureOutcome> RequestWithRetry(string text, CancellationToken cancel)
@@ -237,7 +235,7 @@ public sealed partial class AppModel
         if (code >= 500)
             return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
         if (code >= 400)
-            return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: false);
+            return CaptureOutcome.Failed(CaptureKind.Rejected, retry: false);
         if (ResponseFailed(body))
             return CaptureOutcome.Failed(CaptureKind.Unreachable, retry: true);
 
@@ -329,6 +327,8 @@ public sealed partial class AppModel
             "Your ChatGPT plan can't be used here",
             "ChatGPT returned 403: this plan isn't eligible. Go, Plus or Pro works.",
             false),
+        // A reply arrived, so this is not the timeout. The spec has no sentence for a leftover 4xx.
+        CaptureKind.Rejected => ("", "", false),
         _ => (
             "Couldn't reach ChatGPT",
             "No reply within 30 seconds, after one retry.",
@@ -341,6 +341,7 @@ public sealed partial class AppModel
         CaptureKind.BadOutput => "bad-output",
         CaptureKind.ZeroTasks => "zero-tasks",
         CaptureKind.Plan => "plan",
+        CaptureKind.Rejected => "rejected",
         _ => "unreachable",
     };
 
@@ -350,6 +351,7 @@ public sealed partial class AppModel
         "bad-output" => CaptureKind.BadOutput,
         "zero-tasks" => CaptureKind.ZeroTasks,
         "plan" => CaptureKind.Plan,
+        "rejected" => CaptureKind.Rejected,
         _ => CaptureKind.Unreachable,
     };
 
@@ -765,6 +767,7 @@ public sealed partial class AppModel
         BadOutput,
         ZeroTasks,
         Plan,
+        Rejected,
     }
 
     readonly record struct CaptureOutcome(List<CaptureContract.ParsedTask>? Tasks, CaptureKind Kind, bool Retry)
