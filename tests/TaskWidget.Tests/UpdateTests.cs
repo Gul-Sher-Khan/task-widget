@@ -240,7 +240,7 @@ public sealed class UpdateTests
     }
 
     [Fact]
-    public async Task An_available_update_lights_the_dot_and_shows_the_banner()
+    public async Task An_available_update_lights_the_dot_and_shows_in_about_without_a_banner()
     {
         var folder = Directory.CreateTempSubdirectory("tw-update-banner").FullName;
         var handler = new ReleaseHandler();
@@ -255,10 +255,10 @@ public sealed class UpdateTests
             await model.UpdateCheck;
 
             Assert.True(model.Attention);
-            Assert.True(model.HasBanner);
-            Assert.Equal(WidgetBanner.NewerVersion, model.Banner);
-            Assert.Equal("Version 1.2.0 is available", model.BannerMessage);
-            Assert.Equal("Get update", model.BannerPrimary);
+            Assert.True(model.UpdateAvailable);
+            Assert.Equal("1.2.0", model.NewVersion);
+            Assert.False(model.HasBanner);
+            Assert.Equal(WidgetBanner.None, model.Banner);
             model.Dispose();
 
             var soonClock = new ManualClock();
@@ -267,8 +267,8 @@ public sealed class UpdateTests
             var again = new AppModel(folder, soonClock, http: quiet);
             Assert.Empty(quiet.Sent);
             Assert.True(again.Attention);
-            Assert.Equal(WidgetBanner.NewerVersion, again.Banner);
-            Assert.Equal("Version 1.2.0 is available", again.BannerMessage);
+            Assert.True(again.UpdateAvailable);
+            Assert.Equal(WidgetBanner.None, again.Banner);
             again.Dispose();
         }
         finally

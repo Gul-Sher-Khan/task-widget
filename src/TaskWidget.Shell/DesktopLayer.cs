@@ -21,7 +21,7 @@ sealed partial class DesktopLayer : IDisposable
     {
         Pinned,
         Front,
-        Dock,
+        Hidden,
         Free,
     }
 
@@ -44,8 +44,6 @@ sealed partial class DesktopLayer : IDisposable
     readonly Action reanchor;
     readonly HWND hwnd;
     readonly GCHandle self;
-    readonly nint widgetStyle;
-    readonly nint widgetExStyle;
     readonly uint taskbarCreated;
     readonly UnhookWinEventSafeHandle hook;
     HWND covering;
@@ -64,8 +62,11 @@ sealed partial class DesktopLayer : IDisposable
         presenter = (OverlappedPresenter)appWindow.Presenter;
         dispatcher = window.DispatcherQueue;
         hwnd = (HWND)WindowNative.GetWindowHandle(window);
-        widgetStyle = PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
-        widgetExStyle = PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        // A tool window, as in the prototype: no taskbar button and not in Alt+Tab. Set once; the style is
+        // never rewritten afterwards, so the window's own visibility bit is never overwritten.
+        var ex = (WINDOW_EX_STYLE)(uint)PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)(uint)(ex | WINDOW_EX_STYLE.WS_EX_TOOLWINDOW));
+        appWindow.IsShownInSwitchers = false;
         taskbarCreated = PInvoke.RegisterWindowMessage("TaskbarCreated");
         self = GCHandle.Alloc(this);
         subclassed = PInvoke.SetWindowSubclass(hwnd, Subclass, SubclassId, (nuint)(nint)GCHandle.ToIntPtr(self));
@@ -86,6 +87,8 @@ sealed partial class DesktopLayer : IDisposable
     }
 
     public event Action? Deactivated;
+
+    public event Action<bool>? FocusChanged;
 
     public event Action? DisplayChanged;
 
@@ -151,64 +154,24 @@ sealed partial class DesktopLayer : IDisposable
         }
     }
 
-    public void PrepareWidgetChrome()
+    // The Widget leaves while docked. Focus goes to the window under it, not to the Dock.
+    public void Hide()
     {
-        if (layer is Layer.Dock or Layer.Pinned)
-            layer = Layer.Front;
-        allowHide = false;
-        ApplyWidgetChrome();
-    }
-
-    public void ApplyDock(bool yieldFocus)
-    {
-        layer = Layer.Dock;
+        layer = Layer.Hidden;
         overFullScreen = false;
-        allowHide = false;
+        allowHide = true;
         suspend = true;
         try
         {
-            var style = (WINDOW_STYLE)(uint)widgetStyle;
-            style &= ~(WINDOW_STYLE.WS_CAPTION | WINDOW_STYLE.WS_THICKFRAME | WINDOW_STYLE.WS_BORDER | WINDOW_STYLE.WS_DLGFRAME);
-            PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_STYLE, (nint)(uint)style);
-
-            var ex = (WINDOW_EX_STYLE)(uint)widgetExStyle;
-            ex |= WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_NOACTIVATE;
-            ex &= ~WINDOW_EX_STYLE.WS_EX_APPWINDOW;
-            PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)(uint)ex);
-
-            presenter.SetBorderAndTitleBar(false, false);
-            presenter.IsAlwaysOnTop = true;
-            PInvoke.SetWindowPos(
-                hwnd,
-                InsertTopMost,
-                0,
-                0,
-                0,
-                0,
-                SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
-                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
-                SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
-
-            if (yieldFocus && PInvoke.GetForegroundWindow() == hwnd)
+            presenter.IsAlwaysOnTop = false;
+            if (PInvoke.GetForegroundWindow() == hwnd)
                 GiveFocusAway();
+            appWindow.Hide();
         }
         finally
         {
             suspend = false;
         }
-    }
-
-    public void Hide()
-    {
-        allowHide = true;
-        appWindow.Hide();
-    }
-
-    public void ShowNoActivate()
-    {
-        allowHide = false;
-        PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_SHOWNA);
     }
 
     public void AllowClose()
@@ -221,12 +184,6 @@ sealed partial class DesktopLayer : IDisposable
     {
         switch (layer)
         {
-            case Layer.Dock:
-                var hidden = !PInvoke.IsWindowVisible(hwnd);
-                ApplyDock(yieldFocus: false);
-                if (hidden)
-                    Hide();
-                break;
             case Layer.Pinned:
                 PinToBottom();
                 break;
@@ -378,13 +335,6 @@ sealed partial class DesktopLayer : IDisposable
             if (!allowHide)
                 pos->flags &= ~SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW;
         }
-        else if (layer == Layer.Dock)
-        {
-            pos->hwndInsertAfter = InsertTopMost;
-            pos->flags &= ~SET_WINDOW_POS_FLAGS.SWP_NOZORDER;
-            if (!allowHide)
-                pos->flags &= ~SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW;
-        }
         else if (layer == Layer.Front && overFullScreen)
         {
             pos->hwndInsertAfter = InsertTopMost;
@@ -395,13 +345,21 @@ sealed partial class DesktopLayer : IDisposable
     void NoteActivation(WPARAM wParam)
     {
         var state = (uint)(wParam.Value & 0xFFFF);
-        if (state == PInvoke.WA_INACTIVE)
+        bool active = state != PInvoke.WA_INACTIVE;
+        // Focus is reported even while we move the window ourselves, so a tap knows whether the Widget has it.
+        dispatcher.TryEnqueue(() =>
         {
-            if (suspend || layer is Layer.Dock or Layer.Free)
+            if (!disposed)
+                FocusChanged?.Invoke(active);
+        });
+
+        if (!active)
+        {
+            if (suspend || layer is Layer.Hidden or Layer.Free)
                 return;
             dispatcher.TryEnqueue(() =>
             {
-                if (disposed || layer is Layer.Dock or Layer.Free)
+                if (disposed || layer is Layer.Hidden or Layer.Free)
                     return;
                 Deactivated?.Invoke();
             });
@@ -414,24 +372,7 @@ sealed partial class DesktopLayer : IDisposable
 
     void ApplyWidgetChrome()
     {
-        PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_STYLE, widgetStyle);
-        var ex = (WINDOW_EX_STYLE)(uint)widgetExStyle;
-        ex &= ~(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_NOACTIVATE);
-        PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)(uint)ex);
-        presenter.SetBorderAndTitleBar(true, false);
         presenter.IsAlwaysOnTop = layer == Layer.Front && overFullScreen;
-        PInvoke.SetWindowPos(
-            hwnd,
-            default,
-            0,
-            0,
-            0,
-            0,
-            SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
-            SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
-            SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
-            SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
     }
 
     bool CoversOurMonitor(HWND candidate)

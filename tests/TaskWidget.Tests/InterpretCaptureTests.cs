@@ -25,6 +25,8 @@ public sealed class InterpretCaptureTests
 
         var pending = Assert.Single(world.Model.Tasks);
         Assert.True(pending.IsPending);
+        // Drawn in the Task row layout (spinner, text, "Interpreting…"), as in the prototype.
+        Assert.True(pending.UsesTaskLayout);
         Assert.Equal("Interpreting…", pending.PendingText);
         Assert.Equal("email Sarah the invoice and buy milk", pending.Title);
         Assert.Equal("", world.Model.CaptureText);
@@ -326,7 +328,9 @@ public sealed class InterpretCaptureTests
         Assert.False(root.GetProperty("store").GetBoolean());
         Assert.Equal("low", root.GetProperty("reasoning").GetProperty("effort").GetString());
         Assert.Equal(1, root.GetProperty("reasoning").GetPropertyCount());
-        Assert.Equal(V4Instructions, root.GetProperty("instructions").GetString());
+        // contract.mjs joins lines with \n, whatever line endings this checkout has.
+        Assert.Equal(V4Instructions.ReplaceLineEndings("\n"), root.GetProperty("instructions").GetString());
+        Assert.DoesNotContain('\r', root.GetProperty("instructions").GetString()!);
 
         var message = Assert.Single(root.GetProperty("input").EnumerateArray());
         Assert.Equal("user", message.GetProperty("role").GetString());

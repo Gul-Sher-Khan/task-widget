@@ -24,13 +24,14 @@ namespace TaskWidget;
 public sealed partial class MainWindow : Window
 {
     const double MarginDip = 28;
-    const double DockWidthDip = 380;
-    const double DockHeightDip = 44;
     const double DockTopDip = 8;
+    // The prototype rolls the Widget up to, and unrolls it from, this height.
+    const double RolledDip = 36;
 
     SystemAppearance? appearance;
-    ISystemBackdropControllerWithTargets? backdropController;
-    SystemBackdropConfiguration? backdropConfig;
+    readonly WindowLook look;
+    readonly DockWindow dock;
+    bool widgetHidden;
     double current;
     double from;
     double target;
@@ -78,6 +79,8 @@ public sealed partial class MainWindow : Window
         presenter.IsMaximizable = false;
         presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
+        look = new WindowLook(this, Host);
+        dock = new DockWindow(model, DockClient);
 
         desktop = new DesktopLayer(this, Model, Reanchor);
         desktop.DisplayChanged += Reanchor;
@@ -87,11 +90,9 @@ public sealed partial class MainWindow : Window
         settings.RecordingChanged = value => hotkey.Recording = value;
         AppWindow.Closing += (_, _) => desktop.AllowClose();
 
-        if (Model.Docked)
-        {
-            Root.Visibility = Visibility.Collapsed;
-            DockRoot.Visibility = Visibility.Visible;
-        }
+        // The Widget lays out off screen until it is placed on its anchor, so start-up never flashes a
+        // default-sized window. Starting docked, it then hides and only the Dock appears.
+        AppWindow.Move(new PointInt32(-32000, -32000));
 
         Capture.PreviewKeyDown += Capture_PreviewKeyDown;
         Host.PreviewKeyDown += Host_PreviewKeyDown;
@@ -106,6 +107,7 @@ public sealed partial class MainWindow : Window
         Model.PropertyChanged += OnModelPropertyChanged;
         Model.RaiseRequested += OnRaiseAgain;
         desktop.Deactivated += OnShellDeactivated;
+        desktop.FocusChanged += Model.NoteFocus;
         appearance = new SystemAppearance(Model, () =>
         {
             if (placed)
@@ -116,13 +118,16 @@ public sealed partial class MainWindow : Window
             Model.PropertyChanged -= OnModelPropertyChanged;
             Model.RaiseRequested -= OnRaiseAgain;
             desktop.Deactivated -= OnShellDeactivated;
+            desktop.FocusChanged -= Model.NoteFocus;
             CompositionTarget.Rendering -= Tick;
             desktop.Dispose();
             hotkey.Dispose();
             appearance?.Dispose();
-            backdropController?.Dispose();
+            look.Dispose();
+            dock.Close();
             Model.Dispose();
         };
+        dock.Start();
     }
 
     public AppModel Model { get; }
@@ -211,8 +216,8 @@ public sealed partial class MainWindow : Window
         timer.IsRepeating = false;
         timer.Tick += (_, _) =>
         {
-            if (Model.Docked)
-                Model.Expand();
+            // As the prototype: a hotkey session is up, then a tap on the empty box waits for dictation.
+            Model.Raise();
             Model.Tap("");
         };
         timer.Start();
@@ -421,7 +426,7 @@ public sealed partial class MainWindow : Window
         var rise = compositor.CreateScalarKeyFrameAnimation();
         rise.Target = "Translation.Y";
         rise.InsertKeyFrame(0, (float)Ms("UndoRisePx"));
-        rise.InsertKeyFrame(1, 0, Ease(compositor, true));
+        rise.InsertKeyFrame(1, 0, WindowMotion.Ease(compositor, true));
         rise.Duration = TimeSpan.FromMilliseconds(Ms("UndoInMs"));
         show.Add(fade);
         show.Add(rise);
@@ -515,14 +520,6 @@ public sealed partial class MainWindow : Window
             });
     }
 
-    void Dock_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        if (driving || !Model.Docked)
-            return;
-        Model.Expand();
-        e.Handled = true;
-    }
-
     void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AppModel.SelectedIndex))
@@ -551,9 +548,9 @@ public sealed partial class MainWindow : Window
             if (!placed)
                 return;
             if (Model.Docked)
-                PlayToDock();
+                ToDock();
             else
-                PlayToWidget();
+                ToWidget();
             return;
         }
 
@@ -602,8 +599,9 @@ public sealed partial class MainWindow : Window
         if (!driving)
             Reanchor();
         desktop.BringToFront(Model.FullScreenApp);
-        if (Model.Docked && !driving)
-            PlayToWidget();
+        // Over a full-screen app the model stays docked, so the hidden Widget unrolls here.
+        if (widgetHidden && !driving)
+            ToWidget();
         Capture.Focus(FocusState.Programmatic);
     }
 
@@ -621,21 +619,18 @@ public sealed partial class MainWindow : Window
     {
         if (Model.Docked)
         {
-            if (driving)
-                return;
             if (Model.FullScreenApp)
             {
-                Root.Visibility = Visibility.Collapsed;
-                DockRoot.Visibility = Visibility.Visible;
-                current = DockHeightDip;
-                Place(DockClient());
-                desktop.ApplyDock(yieldFocus: false);
-                desktop.Hide();
+                // Leave the full-screen app at once; the Dock stays hidden while it runs.
+                HideWidgetNow();
                 desktop.YieldToFullScreen();
                 return;
             }
 
-            PlayToDock();
+            // A roll under way checks the state again when it ends.
+            if (driving)
+                return;
+            ToDock();
             return;
         }
 
@@ -655,17 +650,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!Model.Docked)
-            return;
-
-        if (Model.FullScreenApp)
-            desktop.Hide();
-        else
-        {
-            Place(DockClient());
-            desktop.ApplyDock(yieldFocus: false);
-            desktop.ShowNoActivate();
-        }
+        if (Model.Docked)
+            SyncDock();
     }
 
     void OnShellDeactivated() => Model.Deactivate(ForegroundProcess.FileName());
@@ -679,10 +665,9 @@ public sealed partial class MainWindow : Window
         try
         {
             RefreshMonitors();
-            if (Model.Docked && !Model.Raised)
-                Place(DockClient());
-            else
+            if (!widgetHidden)
                 Place(WidgetClient(current > 0 ? current : widgetHeight));
+            dock.Reanchor();
 
             desktop.ReapplyZOrder();
             desktop.CheckFullScreen();
@@ -779,7 +764,7 @@ public sealed partial class MainWindow : Window
     {
         if (Host.XamlRoot is null || arranging || headerDrag || arriving || capping)
             return;
-        if (!Model.Docked && Root.ActualHeight <= 0)
+        if (Root.ActualHeight <= 0)
             return;
 
         if (!placed)
@@ -790,22 +775,17 @@ public sealed partial class MainWindow : Window
             try
             {
                 RefreshMonitors();
+                current = Capped(Root.ActualHeight);
+                widgetHeight = current;
+                Place(WidgetClient(current));
                 if (Model.Docked)
                 {
-                    Root.Visibility = Visibility.Collapsed;
-                    DockRoot.Visibility = Visibility.Visible;
-                    current = DockHeightDip;
-                    Place(DockClient());
-                    desktop.ApplyDock(yieldFocus: true);
+                    HideWidgetNow();
                     desktop.CheckFullScreen();
-                    if (!Model.ShowDock)
-                        desktop.Hide();
+                    SyncDock();
                 }
                 else
                 {
-                    current = Capped(Root.ActualHeight);
-                    widgetHeight = current;
-                    Place(WidgetClient(current));
                     desktop.PinToBottom();
                     desktop.CheckFullScreen();
                 }
@@ -818,7 +798,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (driving || Model.Docked)
+        if (driving || widgetHidden)
             return;
 
         RefreshPlacementLimits();
@@ -828,70 +808,120 @@ public sealed partial class MainWindow : Window
         if (Math.Abs(next - current) < 0.5)
             return;
 
-        from = current;
-        target = next;
-        slide = false;
-        arriving = false;
-        animDone = null;
-        animMs = next > current ? Ms("WidgetGrowMs") : Ms("WidgetShrinkMs");
-        animStart = System.Diagnostics.Stopwatch.GetTimestamp();
-        EnsureRendering();
+        AnimateHeight(next, next > current ? Ms("WidgetGrowMs") : Ms("WidgetShrinkMs"), null);
     }
 
-    // The backdrop cannot fade, so the content and the window height animate.
-    void PlayToDock()
+    // Collapse, as the prototype's Shell.Collapse: the content fades and the Widget rolls up toward the Dock,
+    // hides, and then the Dock appears. The backdrop cannot fade, so the content and the window height animate.
+    void ToDock()
     {
         if (Host.XamlRoot is null)
             return;
+
+        if (widgetHidden)
+        {
+            SyncDock();
+            return;
+        }
 
         driving = true;
         RefreshMonitors();
         widgetHeight = Root.ActualHeight > 0 ? Capped(Root.ActualHeight) : current;
-        AnimateContent(Root, show: false, Ms("WidgetContentOutMs"));
-        AnimateRect(WidgetClient(widgetHeight), DockClient(), Ms("WidgetRollUpMs"), DockHeightDip, FinishDock);
+        WindowMotion.AnimateContent(Root, show: false, Ms("WidgetContentOutMs"));
+        AnimateHeight(RolledDip, Ms("WidgetRollUpMs"), () =>
+        {
+            HideWidgetNow();
+            // Expanded again during the roll-up: unroll from here.
+            if (!Model.Docked || Model.Raised)
+            {
+                ToWidget();
+                return;
+            }
+
+            SyncDock();
+        });
     }
 
-    void FinishDock()
-    {
-        var visual = ElementCompositionPreview.GetElementVisual(DockRoot);
-        ElementCompositionPreview.SetIsTranslationEnabled(DockRoot, true);
-        visual.Opacity = 0;
-        Root.Visibility = Visibility.Collapsed;
-        DockRoot.Visibility = Visibility.Visible;
-        AnimateContent(DockRoot, show: true, Ms("DockInMs"));
-        SpringIn(DockRoot);
-        desktop.ApplyDock(yieldFocus: true);
-        if (!Model.ShowDock)
-            desktop.Hide();
-        driving = false;
-    }
-
-    void PlayToWidget()
+    // Expand, as the prototype's Shell.Expand and hotkey session: the Dock fades out while the Widget
+    // unrolls from 36 px on its anchor with its content fading in.
+    void ToWidget()
     {
         if (Host.XamlRoot is null)
             return;
 
+        dock.HideDock();
+
         driving = true;
         RefreshMonitors();
-        desktop.PrepareWidgetChrome();
-        Activate();
-        AnimateContent(DockRoot, show: false, Ms("DockOutMs"));
         Root.Visibility = Visibility.Visible;
         Root.Measure(new Size(Root.Width, double.PositiveInfinity));
         Root.UpdateLayout();
         var height = Capped(Math.Max(Root.ActualHeight, Root.DesiredSize.Height));
         if (height <= 0)
             height = widgetHeight;
-        AnimateContent(Root, show: true, Ms("WidgetContentInMs"));
-        AnimateRect(DockClient(), WidgetClient(height), Ms("WidgetUnrollMs"), height, () =>
+        if (widgetHidden)
         {
-            DockRoot.Visibility = Visibility.Collapsed;
+            current = RolledDip;
+            Place(WidgetClient(current));
+            widgetHidden = false;
+        }
+
+        desktop.BringToFront(Model.FullScreenApp);
+        Activate();
+        WindowMotion.AnimateContent(Root, show: true, Ms("WidgetContentInMs"));
+        AnimateHeight(height, Ms("WidgetUnrollMs"), () =>
+        {
             driving = false;
+            widgetHeight = current;
             // Commit or Esc during the unroll still has to send a temporary Widget away.
             if (!Model.Raised && Model.Docked)
                 OnDismissed();
+            else
+                OnHostSize();
         });
         Capture.Focus(FocusState.Programmatic);
+    }
+
+    void HideWidgetNow()
+    {
+        if (rendering)
+        {
+            CompositionTarget.Rendering -= Tick;
+            rendering = false;
+        }
+
+        animDone = null;
+        driving = false;
+        widgetHidden = true;
+        // Docked, the list is not laid out or rendered at all, as when the Widget was one collapsed panel.
+        Root.Visibility = Visibility.Collapsed;
+        desktop.Hide();
+    }
+
+    // The Dock shows while docked, unless the Widget is up or a full-screen app is on the home monitor.
+    void SyncDock()
+    {
+        if (Model.ShowDock && widgetHidden)
+        {
+            if (!dock.IsShown)
+                dock.ShowDock();
+        }
+        else if (dock.IsShown)
+        {
+            dock.HideNow();
+        }
+    }
+
+    void AnimateHeight(double to, double ms, Action? done)
+    {
+        from = current;
+        target = to;
+        slide = false;
+        arriving = false;
+        animMs = ms;
+        animDone = done;
+        animStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        EnsureRendering();
     }
 
     void Tick(object? sender, object e)
@@ -953,51 +983,7 @@ public sealed partial class MainWindow : Window
         CompositionTarget.Rendering += Tick;
     }
 
-    void AnimateContent(UIElement element, bool show, double ms)
-    {
-        var visual = ElementCompositionPreview.GetElementVisual(element);
-        ElementCompositionPreview.SetIsTranslationEnabled(element, true);
-        var compositor = visual.Compositor;
-        var ease = Ease(compositor, show);
-        float slidePx = -(float)Ms("WidgetSlidePx");
-        var opacity = compositor.CreateScalarKeyFrameAnimation();
-        opacity.InsertKeyFrame(0, show ? 0 : 1);
-        opacity.InsertKeyFrame(1, show ? 1 : 0, ease);
-        opacity.Duration = TimeSpan.FromMilliseconds(ms);
-        var translation = compositor.CreateScalarKeyFrameAnimation();
-        translation.InsertKeyFrame(0, show ? slidePx : 0);
-        translation.InsertKeyFrame(1, show ? 0 : slidePx, ease);
-        translation.Duration = TimeSpan.FromMilliseconds(ms);
-        visual.StartAnimation("Opacity", opacity);
-        visual.StartAnimation("Translation.Y", translation);
-    }
-
-    void SpringIn(UIElement element)
-    {
-        var visual = ElementCompositionPreview.GetElementVisual(element);
-        visual.CenterPoint = new Vector3((float)(DockWidthDip / 2), 0, 0);
-        var compositor = visual.Compositor;
-        var spring = compositor.CreateSpringVector3Animation();
-        float fromScale = (float)Ms("DockSpringFrom");
-        spring.InitialValue = new Vector3(fromScale, fromScale, 1);
-        spring.FinalValue = Vector3.One;
-        spring.DampingRatio = (float)Ms("DockSpringDamping");
-        spring.Period = TimeSpan.FromMilliseconds(Ms("DockSpringPeriodMs"));
-        visual.StartAnimation("Scale", spring);
-    }
-
-    static CompositionEasingFunction Ease(Compositor compositor, bool arrive)
-    {
-        var resources = Application.Current.Resources;
-        string prefix = arrive ? "EaseOut" : "EaseIn";
-        float x1 = (float)(double)resources[$"{prefix}X1"];
-        float y1 = (float)(double)resources[$"{prefix}Y1"];
-        float x2 = (float)(double)resources[$"{prefix}X2"];
-        float y2 = (float)(double)resources[$"{prefix}Y2"];
-        return compositor.CreateCubicBezierEasingFunction(new Vector2(x1, y1), new Vector2(x2, y2));
-    }
-
-    static double Ms(string key) => (double)Application.Current.Resources[key];
+    static double Ms(string key) => WindowMotion.Ms(key);
 
     double Scale => Host.XamlRoot.RasterizationScale;
 
@@ -1177,8 +1163,8 @@ public sealed partial class MainWindow : Window
     RectInt32 DockClient()
     {
         var (area, scale) = Anchor();
-        int width = (int)Math.Ceiling(DockWidthDip * scale);
-        int height = (int)Math.Ceiling(DockHeightDip * scale);
+        int width = (int)Math.Ceiling(DockWindow.WidthDip * scale);
+        int height = (int)Math.Ceiling(DockWindow.HeightDip * scale);
         int x = area.X + (area.Width - width) / 2;
         int y = area.Y + (int)Math.Ceiling(DockTopDip * scale);
         return new RectInt32(x, y, width, height);
@@ -1238,11 +1224,12 @@ public sealed partial class MainWindow : Window
         (int)Math.Round(a.Width + (b.Width - a.Width) * t),
         (int)Math.Round(a.Height + (b.Height - a.Height) * t));
 
+    // Theme and backdrop for both windows. Contrast themes get no backdrop and the HighContrast tokens.
     void ApplyLook()
     {
         bool contrast = appearance?.ContrastTheme == true;
         bool preview = LookLaunch.ContrastPreview && !contrast;
-        Host.RequestedTheme = preview
+        var theme = preview
             ? ElementTheme.Dark
             : contrast
                 ? ElementTheme.Default
@@ -1252,44 +1239,9 @@ public sealed partial class MainWindow : Window
                     ThemeChoice.Dark => ElementTheme.Dark,
                     _ => ElementTheme.Default,
                 };
-
-        backdropController?.RemoveAllSystemBackdropTargets();
-        backdropController?.Dispose();
-        backdropController = null;
-        backdropConfig = null;
-
+        bool dark = preview || Model.AppearsDark;
         var effective = contrast || preview ? BackdropChoice.Solid : Model.EffectiveBackdrop;
-        if (effective == BackdropChoice.Solid)
-        {
-            Host.ClearValue(Grid.BackgroundProperty);
-            return;
-        }
-
-        backdropConfig = new SystemBackdropConfiguration
-        {
-            // Kept true so Mica and Acrylic stay live when the window is inactive.
-            IsInputActive = true,
-            Theme = Model.AppearsDark ? SystemBackdropTheme.Dark : SystemBackdropTheme.Light,
-        };
-
-        try
-        {
-            backdropController = effective switch
-            {
-                BackdropChoice.MicaAlt => new MicaController { Kind = MicaKind.BaseAlt },
-                BackdropChoice.Acrylic => new DesktopAcrylicController { Kind = DesktopAcrylicKind.Base },
-                _ => new MicaController { Kind = MicaKind.Base },
-            };
-            backdropController.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
-            backdropController.SetSystemBackdropConfiguration(backdropConfig);
-            Host.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-        }
-        catch (COMException)
-        {
-            backdropController?.Dispose();
-            backdropController = null;
-            backdropConfig = null;
-            Host.ClearValue(Grid.BackgroundProperty);
-        }
+        look.Apply(theme, dark, contrast, effective);
+        dock.ApplyLook(theme, dark, contrast, effective);
     }
 }

@@ -54,7 +54,7 @@ static class LookLaunch
     }
 
     public static HttpMessageHandler CreateHandler() =>
-        Active && Busy ? new HangHandler() : new HttpClientHandler();
+        Active && (Busy || Scene == 7) ? new HangHandler() : new HttpClientHandler();
 
     public static INetwork CreateNetwork() =>
         Active && Scene == 7 ? new OfflineNetwork() : new SystemNetwork();
@@ -74,10 +74,9 @@ static class LookLaunch
         _ = model.CommitCapture();
     }
 
-    // Scene 7 opens the re-interpret editor and dims that Capture's Tasks.
-    // A waiting row and a pending "Re-interpreting…" row cannot show together:
-    // startup releases every waiting Capture while the PC is online, and a pending
-    // row only stays pending while it is online.
+    // Scene 7, as the prototype's SeedCaptureStates: the Bilal Capture is re-interpreted with corrected text
+    // and stays "Re-interpreting…" (its request never answers) over its dimmed Tasks, while the offline
+    // network keeps the waiting row waiting.
     static void OpenReinterpret(AppModel model)
     {
         var source = model.Tasks.FirstOrDefault(task => task.Capture == "bilal" && task.IsTaskRow);
@@ -85,11 +84,9 @@ static class LookLaunch
             return;
 
         model.Reinterpret(source);
-        foreach (var task in model.Tasks)
-        {
-            if (task.Capture == "bilal" && task.IsTaskRow)
-                task.IsDimmed = true;
-        }
+        var row = model.Tasks.FirstOrDefault(task => task.IsReinterpret && task.IsEditingCapture);
+        if (row is not null)
+            _ = model.SubmitCapture(row, row.Title.Replace("offsite agenda", "offsite agenda for March"));
     }
 
     static bool SignedIn => Scene is not (1 or 4);
@@ -119,6 +116,13 @@ static class LookLaunch
               "backdrop": "{{backdrop}}",
               "checkForUpdatesAutomatically": false,
               "welcomeRetired": {{retired}},
+              "modelsCachedAt": "{{DateTimeOffset.Now:o}}",
+              "models": [
+                { "slug": "gpt-5.6-sol", "priority": 1 },
+                { "slug": "gpt-5.6-terra", "priority": 2 },
+                { "slug": "gpt-5.6-luna", "priority": 3 },
+                { "slug": "gpt-6-astra", "priority": 4 }
+              ],
               {{update}}
             }
             """);

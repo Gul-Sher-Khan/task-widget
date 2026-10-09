@@ -14,7 +14,6 @@ namespace TaskWidget.Core;
 public enum WidgetBanner
 {
     None,
-    NewerVersion,
     NewerFile,
     SignedOut,
     Recovered,
@@ -240,13 +239,12 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     bool Online => network is null || network.Online;
 
-    // Newer version outranks signed out, which outranks recovered and started empty.
+    // Newer version (a file saved by a newer Task Widget) outranks signed out, which outranks recovered and
+    // started empty. An available update is not a banner: it lights the dot and shows in Settings › About.
     public WidgetBanner Banner
     {
         get
         {
-            if (updateReady)
-                return WidgetBanner.NewerVersion;
             if (readOnly)
                 return WidgetBanner.NewerFile;
             if (SignedOut)
@@ -263,7 +261,6 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public string BannerMessage => Banner switch
     {
-        WidgetBanner.NewerVersion => "Version " + newVersion + " is available",
         WidgetBanner.NewerFile => "These tasks were saved by a newer Task Widget. Update to make changes.",
         WidgetBanner.SignedOut => SignInState switch
         {
@@ -279,7 +276,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public string BannerPrimary => Banner switch
     {
-        WidgetBanner.NewerVersion or WidgetBanner.NewerFile => "Get update",
+        WidgetBanner.NewerFile => "Get update",
         WidgetBanner.SignedOut => SignInState switch
         {
             SignInPhase.Waiting => "Cancel",
@@ -290,7 +287,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         _ => "",
     };
 
-    public bool BannerIsInfo => Banner is WidgetBanner.NewerVersion or WidgetBanner.NewerFile or WidgetBanner.Recovered;
+    public bool BannerIsInfo => Banner is WidgetBanner.NewerFile or WidgetBanner.Recovered;
 
     public bool ReadOnly => readOnly;
 
@@ -1031,6 +1028,10 @@ public void Move(TaskRow task, int index)
             return;
         }
 
+        // As the prototype's hotkey and Dock click: the Widget comes up on its list with the Capture box showing.
+        SettingsOpen = false;
+        if (ShowingDone)
+            ToggleDoneView();
         Raised = true;
     }
 

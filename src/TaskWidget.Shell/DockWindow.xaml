@@ -1,0 +1,56 @@
+<!-- The Dock: its own window, as in the prototype (Variants/DockCapture.xaml, Shell/Windows.cs DockWindow). -->
+<Window
+    x:Class="TaskWidget.DockWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TaskWidget">
+    <Grid x:Name="Host" Background="{ThemeResource SurfaceSolidBrush}" PointerPressed="Host_PointerPressed">
+        <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
+              Background="Transparent"
+              AutomationProperties.Name="{x:Bind local:F.DockName(Model.IsProcessing), Mode=OneWay}">
+            <Grid Padding="14,0,16,0" ColumnSpacing="10" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="18" Height="18">
+                    <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                              Visibility="{x:Bind local:F.Hidden(Model.IsProcessing), Mode=OneWay}" />
+                    <ProgressRing Width="16" Height="16" IsActive="{x:Bind Model.IsProcessing, Mode=OneWay}"
+                                  AutomationProperties.AccessibilityView="Raw"
+                                  Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
+                </Grid>
+                <TextBlock Grid.Column="1" Text="Capture a thought…" FontSize="13.5"
+                           Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center"
+                           Visibility="{x:Bind local:F.Hidden(Model.IsProcessing), Mode=OneWay}" />
+                <TextBlock Grid.Column="1" Text="Interpreting…" FontSize="13.5"
+                           Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center"
+                           Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="5"
+                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenHighCount), Mode=OneWay}">
+                        <local:PriorityBadge Priority="High" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenHighCount), Mode=OneWay}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5"
+                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenMediumCount), Mode=OneWay}">
+                        <local:PriorityBadge Priority="Medium" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenMediumCount), Mode=OneWay}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5"
+                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenLowCount), Mode=OneWay}">
+                        <local:PriorityBadge Priority="Low" />
+                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenLowCount), Mode=OneWay}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+            <Ellipse Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                     Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                     Visibility="{x:Bind local:Row.When(Model.Attention), Mode=OneWay}" />
+        </Grid>
+    </Grid>
+</Window>

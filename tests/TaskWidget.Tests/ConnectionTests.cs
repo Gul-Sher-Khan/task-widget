@@ -203,7 +203,7 @@ public sealed class ConnectionTests
     }
 
     [Fact]
-    public void A_newer_version_outranks_the_signed_out_banner()
+    public void An_available_update_leaves_the_signed_out_banner_up()
     {
         var folder = Directory.CreateTempSubdirectory("tw-banner-rank").FullName;
         try
@@ -219,9 +219,10 @@ public sealed class ConnectionTests
                 """);
             var model = new AppModel(folder, new ManualClock(), new ConnectionHttp(), new CallbackBrowser(SignInWorld.SuccessCallback), new PassThroughProtector());
             Assert.False(model.HasConnection);
-            Assert.Equal(WidgetBanner.NewerVersion, model.Banner);
-            Assert.Equal("Version 9.9.0 is available", model.BannerMessage);
-            Assert.Equal("Get update", model.BannerPrimary);
+            Assert.Equal(WidgetBanner.SignedOut, model.Banner);
+            Assert.Equal("You're signed out of ChatGPT. New Captures wait until you sign in.", model.BannerMessage);
+            Assert.Equal("Sign in", model.BannerPrimary);
+            Assert.True(model.UpdateAvailable);
             Assert.True(model.Attention);
             model.Dispose();
         }
@@ -241,6 +242,7 @@ public sealed class ConnectionTests
 
         var waiting = Assert.Single(world.Model.Tasks);
         Assert.True(waiting.IsWaiting);
+        Assert.False(waiting.UsesTaskLayout);
         Assert.Equal("buy milk", waiting.Title);
         Assert.Equal("Waiting for connection", waiting.Reason);
         Assert.False(waiting.LightsDot);

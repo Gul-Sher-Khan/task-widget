@@ -36,6 +36,7 @@ public sealed class FailedCaptureTests
         Assert.Same(pending, failed);
         Assert.False(failed.IsPending);
         Assert.True(failed.IsFailed);
+        Assert.False(failed.UsesTaskLayout);
         Assert.True(failed.ShowFailed);
         Assert.Equal("buy milk", failed.Title);
         Assert.Equal("Couldn't reach ChatGPT", failed.Reason);
@@ -142,8 +143,8 @@ public sealed class FailedCaptureTests
         var failed = Assert.Single(world.Model.Tasks);
         Assert.True(failed.IsFailed);
         Assert.Equal("buy milk", failed.Title);
-        Assert.Equal("", failed.Reason);
-        Assert.Equal("", failed.ReasonTip);
+        Assert.Equal("ChatGPT turned the request down", failed.Reason);
+        Assert.Equal("ChatGPT answered with an error instead of Tasks. Retry, or edit the text.", failed.ReasonTip);
         Assert.NotEqual("Couldn't reach ChatGPT", failed.Reason);
         Assert.NotEqual("No reply within 30 seconds, after one retry.", failed.ReasonTip);
 
@@ -153,8 +154,8 @@ public sealed class FailedCaptureTests
         var again = new AppModel(world.Folder, new ManualClock());
         var restored = Assert.Single(again.Tasks);
         Assert.True(restored.IsFailed);
-        Assert.Equal("", restored.Reason);
-        Assert.Equal("", restored.ReasonTip);
+        Assert.Equal("ChatGPT turned the request down", restored.Reason);
+        Assert.Equal("ChatGPT answered with an error instead of Tasks. Retry, or edit the text.", restored.ReasonTip);
         again.Dispose();
     }
 
@@ -172,8 +173,8 @@ public sealed class FailedCaptureTests
 
         var failed = Assert.Single(world.Model.Tasks);
         Assert.True(failed.IsFailed);
-        Assert.Equal("", failed.Reason);
-        Assert.Equal("", failed.ReasonTip);
+        Assert.Equal("ChatGPT turned the request down", failed.Reason);
+        Assert.Equal("ChatGPT answered with an error instead of Tasks. Retry, or edit the text.", failed.ReasonTip);
         Assert.NotEqual("Your ChatGPT plan can't be used here", failed.Reason);
         Assert.NotEqual("Couldn't reach ChatGPT", failed.Reason);
 

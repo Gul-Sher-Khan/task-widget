@@ -327,8 +327,11 @@ public sealed partial class AppModel
             "Your ChatGPT plan can't be used here",
             "ChatGPT returned 403: this plan isn't eligible. Go, Plus or Pro works.",
             false),
-        // A reply arrived, so this is not the timeout. The spec has no sentence for a leftover 4xx.
-        CaptureKind.Rejected => ("", "", false),
+        // A reply arrived, so this is not the timeout. Every failed row still needs a one-line reason.
+        CaptureKind.Rejected => (
+            "ChatGPT turned the request down",
+            "ChatGPT answered with an error instead of Tasks. Retry, or edit the text.",
+            false),
         _ => (
             "Couldn't reach ChatGPT",
             "No reply within 30 seconds, after one retry.",

@@ -126,12 +126,71 @@ public sealed class CaptureHotkeyTests
     }
 
     [Fact]
+    public void A_tap_on_an_open_widget_behind_other_windows_brings_it_up_first()
+    {
+        var folder = Directory.CreateTempSubdirectory("tw-tap-unfocused").FullName;
+        var model = new AppModel(folder, new ManualClock());
+        try
+        {
+            model.UpdateDraft("half a thought");
+            model.NoteFocus(false);
+            model.Tap("half a thought");
+
+            Assert.True(model.Raised);
+            Assert.False(model.Docked);
+            Assert.False(model.WaitingDictation);
+            Assert.Empty(model.Tasks);
+            Assert.Equal("half a thought", model.CaptureText);
+
+            model.Tap("half a thought");
+
+            Assert.Equal("half a thought", Assert.Single(model.Tasks).Title);
+            Assert.True(model.Docked);
+        }
+        finally
+        {
+            model.Dispose();
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Raising_shows_the_list_with_the_capture_box()
+    {
+        var folder = Directory.CreateTempSubdirectory("tw-tap-list").FullName;
+        var model = new AppModel(folder, new ManualClock());
+        try
+        {
+            model.ToggleSettings();
+            model.Dock();
+            model.Tap("");
+
+            Assert.True(model.Raised);
+            Assert.False(model.SettingsOpen);
+            Assert.True(model.ShowingCapture);
+
+            model.Leave();
+            model.ToggleDoneView();
+            model.Raise();
+
+            Assert.False(model.ShowingDone);
+            Assert.True(model.ShowingCapture);
+        }
+        finally
+        {
+            model.Dispose();
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void A_tap_with_text_commits_and_docks()
     {
         var folder = Directory.CreateTempSubdirectory("tw-tap-commit").FullName;
         var model = new AppModel(folder, new ManualClock());
         try
         {
+            model.NoteFocus(true);
             model.Tap("buy milk");
 
             Assert.Equal("buy milk", Assert.Single(model.Tasks).Title);
@@ -154,6 +213,7 @@ public sealed class CaptureHotkeyTests
         var model = new AppModel(folder, clock);
         try
         {
+            model.NoteFocus(true);
             model.Tap("");
 
             Assert.True(model.WaitingDictation);
@@ -187,6 +247,7 @@ public sealed class CaptureHotkeyTests
         var model = new AppModel(folder, clock);
         try
         {
+            model.NoteFocus(true);
             model.Tap("");
             clock.Advance(TimeSpan.FromMilliseconds(4000));
 

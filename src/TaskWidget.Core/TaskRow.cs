@@ -85,6 +85,18 @@ public sealed partial class TaskRow : ObservableObject
 
     public bool IsTaskRow => !IsCaptureRow && !IsPending && !IsWaiting;
 
+    // The prototype's IsTaskRow: everything but a waiting, failed or edited Capture uses the Task row layout.
+    // A pending row is drawn there, with a spinner in place of the tick and "Interpreting…" under the text.
+    public bool UsesTaskLayout => !IsCaptureRow && !IsWaiting;
+
+    partial void OnIsPendingChanged(bool value) => RaiseKind();
+
+    partial void OnIsWaitingChanged(bool value) => RaiseKind();
+
+    partial void OnIsFailedChanged(bool value) => RaiseKind();
+
+    partial void OnIsEditingCaptureChanged(bool value) => RaiseKind();
+
     public bool NotTask => IsPending || IsWaiting || IsCaptureRow;
 
     public DateTimeOffset CreatedAt { get; internal set; }
@@ -156,6 +168,7 @@ public sealed partial class TaskRow : ObservableObject
         OnPropertyChanged(nameof(ShowFailed));
         OnPropertyChanged(nameof(IsCaptureRow));
         OnPropertyChanged(nameof(IsTaskRow));
+        OnPropertyChanged(nameof(UsesTaskLayout));
         OnPropertyChanged(nameof(NotTask));
     }
 }

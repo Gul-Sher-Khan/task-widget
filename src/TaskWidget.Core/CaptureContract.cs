@@ -31,7 +31,9 @@ static class CaptureContract
         }
         """;
 
-    public static string Instructions(DateTimeOffset today) => Prefix + FormatToday(today) + ".";
+    // contract.mjs uses \n line breaks. A CRLF checkout must not change the text sent.
+    public static string Instructions(DateTimeOffset today) =>
+        Prefix.ReplaceLineEndings("\n") + FormatToday(today) + ".";
 
     public static string FormatToday(DateTimeOffset today) =>
         Weekdays[(int)today.DayOfWeek] + " " + today.Day + " " + Months[today.Month - 1] + " " + today.Year;

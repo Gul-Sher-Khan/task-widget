@@ -9,6 +9,7 @@ public sealed partial class AppModel
     HotkeyBinding hotkeyBinding = HotkeyBinding.CtrlShift;
     IDisposable? dictationTimer;
     bool finishingDictation;
+    bool widgetFocused;
 
     [ObservableProperty]
     public partial bool WaitingDictation { get; private set; }
@@ -21,9 +22,14 @@ public sealed partial class AppModel
 
     public string CapturePlaceholder => WaitingDictation ? "Waiting for dictation…" : "Capture a thought…";
 
+    // The shell reports whether the Widget window has the keyboard focus.
+    public void NoteFocus(bool focused) => widgetFocused = focused;
+
     public void Tap(string fieldText)
     {
-        if (!ShowWidget)
+        // Docked, or open on the desktop behind other windows: the tap brings the Widget up first.
+        // Only a raised or focused Widget treats the tap as commit, or as waiting for dictation.
+        if (!ShowWidget || (!Raised && !widgetFocused))
         {
             Raise();
             return;

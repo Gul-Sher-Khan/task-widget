@@ -328,11 +328,10 @@ public sealed class StorageDurabilityTests
             var newerFile = "These tasks were saved by a newer Task Widget. Update to make changes.";
 
             var updateAndRecovered = Open(update: true, signedOut: false, newerFile: false, damaged: true);
-            Assert.Equal(WidgetBanner.NewerVersion, updateAndRecovered.Banner);
-            Assert.Equal("Version 1.2.0 is available", updateAndRecovered.BannerMessage);
-            Assert.Equal("Get update", updateAndRecovered.BannerPrimary);
+            Assert.Equal(WidgetBanner.Recovered, updateAndRecovered.Banner);
+            Assert.Equal(recovered, updateAndRecovered.BannerMessage);
+            Assert.True(updateAndRecovered.UpdateAvailable);
             Assert.Equal("email Sarah", Assert.Single(updateAndRecovered.Tasks).Title);
-            Assert.NotEqual(recovered, updateAndRecovered.BannerMessage);
             updateAndRecovered.Dispose();
 
             var signedOutAndRecovered = Open(update: false, signedOut: true, newerFile: false, damaged: true);
@@ -351,10 +350,10 @@ public sealed class StorageDurabilityTests
             newerFileAndSignedOut.Dispose();
 
             var updateAndNewerFile = Open(update: true, signedOut: true, newerFile: true, damaged: false);
-            Assert.Equal(WidgetBanner.NewerVersion, updateAndNewerFile.Banner);
-            Assert.Equal("Version 1.2.0 is available", updateAndNewerFile.BannerMessage);
+            Assert.Equal(WidgetBanner.NewerFile, updateAndNewerFile.Banner);
+            Assert.Equal(newerFile, updateAndNewerFile.BannerMessage);
+            Assert.Equal("Get update", updateAndNewerFile.BannerPrimary);
             Assert.True(updateAndNewerFile.ReadOnly);
-            Assert.NotEqual(newerFile, updateAndNewerFile.BannerMessage);
             updateAndNewerFile.Dispose();
 
             var firstRun = Open(update: false, signedOut: false, newerFile: false, damaged: false);

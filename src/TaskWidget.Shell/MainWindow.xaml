@@ -132,7 +132,7 @@
                         </Grid>
                         <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent"
                               Opacity="{x:Bind local:F.Dim(IsDimmed), Mode=OneWay}" local:Fx.DimFade="True"
-                              Visibility="{x:Bind local:Row.When(IsTaskRow), Mode=OneWay}">
+                              Visibility="{x:Bind local:Row.When(UsesTaskLayout), Mode=OneWay}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -200,9 +200,17 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
                 </ListView>
+            </Grid>
 
+            <local:Welcome x:Name="EmptyHotkey" Grid.Row="5" Card="False"
+                           Model="{x:Bind Model}"
+                           Visibility="{x:Bind local:F.VisibleWhenBoth(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
+
+            <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
+
+            <!-- The prototype's UndoPill control: always laid out over the list rows, so its 4 px margin counts. -->
+            <Grid Grid.Row="4" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4">
                 <Border x:Name="UndoPill" CornerRadius="16" Padding="14,6,6,6"
-                        HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4"
                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
                         BorderBrush="{ThemeResource HairlineBrush}" BorderThickness="1"
                         Visibility="{x:Bind local:Row.When(Model.UndoVisible), Mode=OneWay}">
@@ -222,60 +230,6 @@
                     </StackPanel>
                 </Border>
             </Grid>
-
-            <local:Welcome x:Name="EmptyHotkey" Grid.Row="5" Card="False"
-                           Model="{x:Bind Model}"
-                           Visibility="{x:Bind local:F.VisibleWhenBoth(Model.ShowEmptyHotkey, Model.ShowingTasks), Mode=OneWay}" />
-
-            <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
-        </Grid>
-
-        <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
-              Background="Transparent" Visibility="Collapsed" PointerPressed="Dock_PointerPressed"
-              AutomationProperties.Name="{x:Bind local:F.DockName(Model.IsProcessing), Mode=OneWay}">
-            <Grid Padding="14,0,16,0" ColumnSpacing="10" VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid Width="18" Height="18">
-                    <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                              Visibility="{x:Bind local:F.Hidden(Model.IsProcessing), Mode=OneWay}" />
-                    <ProgressRing Width="16" Height="16" IsActive="{x:Bind Model.IsProcessing, Mode=OneWay}"
-                                  AutomationProperties.AccessibilityView="Raw"
-                                  Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
-                </Grid>
-                <TextBlock Grid.Column="1" Text="Capture a thought…" FontSize="13.5"
-                           Foreground="{ThemeResource FaintTextBrush}" VerticalAlignment="Center"
-                           Visibility="{x:Bind local:F.Hidden(Model.IsProcessing), Mode=OneWay}" />
-                <TextBlock Grid.Column="1" Text="Interpreting…" FontSize="13.5"
-                           Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center"
-                           Visibility="{x:Bind Model.IsProcessing, Mode=OneWay}" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="5"
-                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenHighCount), Mode=OneWay}">
-                        <local:PriorityBadge Priority="High" />
-                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenHighCount), Mode=OneWay}"
-                                   FontSize="13" FontWeight="SemiBold" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="5"
-                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenMediumCount), Mode=OneWay}">
-                        <local:PriorityBadge Priority="Medium" />
-                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenMediumCount), Mode=OneWay}"
-                                   FontSize="13" FontWeight="SemiBold" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="5"
-                                Visibility="{x:Bind local:Row.WhenPositive(Model.OpenLowCount), Mode=OneWay}">
-                        <local:PriorityBadge Priority="Low" />
-                        <TextBlock Text="{x:Bind local:Row.CountText(Model.OpenLowCount), Mode=OneWay}"
-                                   FontSize="13" FontWeight="SemiBold" />
-                    </StackPanel>
-                </StackPanel>
-            </Grid>
-            <Ellipse Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
-                     Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                     Visibility="{x:Bind local:Row.When(Model.Attention), Mode=OneWay}" />
         </Grid>
     </Grid>
 </Window>
