@@ -30,6 +30,7 @@ public sealed partial class DockWindow : Window
         this.placement = placement;
         InitializeComponent();
         Title = "Task Widget";
+        AppIcon.Apply(AppWindow);
 
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(true, false);

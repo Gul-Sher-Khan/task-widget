@@ -56,6 +56,7 @@ OutputDir=..\artifacts\installers
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\src\TaskWidget.Shell\Assets\TaskWidget.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 CloseApplications=yes

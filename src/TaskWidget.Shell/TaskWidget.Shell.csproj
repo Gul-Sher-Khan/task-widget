@@ -24,6 +24,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The .exe icon (Explorer, Start menu, Task Manager, startup apps). Built from assets/icon. -->
+    <ApplicationIcon>Assets\TaskWidget.ico</ApplicationIcon>
     <!-- Product version is the git tag (v*), passed as -p:Version by the release workflow. -->
   </PropertyGroup>
   <ItemGroup>
@@ -37,6 +39,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskWidget.Core\TaskWidget.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Loaded at run time for the window icons. -->
+    <Content Include="Assets\TaskWidget.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <!-- dotnet publish -o leaves .pri and .xbf behind. Copy them or the window has no XAML. -->
   <Target Name="CopyPriAndXbf" AfterTargets="Publish">

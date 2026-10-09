@@ -72,6 +72,7 @@ public sealed partial class MainWindow : Window
         SettingsHost.Children.Add(settings);
         BannerHost.Children.Add(new BannerView(model));
         Title = "Task Widget";
+        AppIcon.Apply(AppWindow);
 
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(true, false);

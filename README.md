@@ -1,3 +1,5 @@
+<img src="assets/icon/TaskWidget-1024.png" alt="" width="96" height="96">
+
 # Task Widget
 
 Task Widget is a small Windows 11 app. The Widget is a window pinned to the desktop that lists your Tasks, ranked so important, quick Tasks come first. The Dock is the collapsed Widget under the top edge of the screen.
