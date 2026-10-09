@@ -15,7 +15,7 @@ static class LookLaunch
     [
         "LOOK_SCENE", "LOOK_THEME", "LOOK_BACKDROP", "LOOK_DOCKED", "LOOK_BUSY",
         "LOOK_SETTINGS", "LOOK_NOBAR", "LOOK_UPDATE", "LOOK_CONTRAST", "LOOK_SIGNIN",
-        "LOOK_DICTATION",
+        "LOOK_DICTATION", "LOOK_COUNT",
     ];
 
     public static bool Active { get; private set; }
@@ -136,7 +136,8 @@ static class LookLaunch
         }
 
         var schema = Scene == 3 ? 2 : 1;
-        var tasks = Scene == 7 ? CaptureStateTasks() : EverydayTasks();
+        var count = Env("LOOK_COUNT");
+        var tasks = count > 0 ? CountedTasks(count) : Scene == 7 ? CaptureStateTasks() : EverydayTasks();
         var captures = Scene == 7 ? CaptureStateCaptures() : "";
         var json = $$"""
             {
@@ -190,6 +191,16 @@ static class LookLaunch
         var preview = (Microsoft.UI.Xaml.ResourceDictionary)tokens["ContrastPreview"];
         foreach (var entry in preview)
             dark[entry.Key] = entry.Value;
+    }
+
+    static string CountedTasks(int count)
+    {
+        var priorities = new[] { "high", "medium", "low" };
+        var efforts = new[] { "quick", "short", "long" };
+        var rows = new string[count];
+        for (var i = 0; i < count; i++)
+            rows[i] = Task($"Review item {i + 1}", "", priorities[i % 3], efforts[i % 3]);
+        return string.Join(",\n", rows);
     }
 
     static string EverydayTasks() => string.Join(",\n", new[]
