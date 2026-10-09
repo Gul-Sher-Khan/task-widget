@@ -17,6 +17,7 @@ sealed class CaptureRecord
     public string Id { get; set; } = "";
     public string Text { get; set; } = "";
     public string Interpreted { get; set; } = "";
+    public string Correction { get; set; } = "";
     public string State { get; set; } = "";
     public string Cause { get; set; } = "";
 }

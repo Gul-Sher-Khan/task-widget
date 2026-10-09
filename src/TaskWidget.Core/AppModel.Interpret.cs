@@ -45,6 +45,12 @@ public sealed partial class AppModel
 
             if (outcome.Tasks is not null)
             {
+                if (row.IsReinterpret)
+                {
+                    ReplaceNotDone(row, record, outcome.Tasks, text, at);
+                    return;
+                }
+
                 Tasks.Remove(row);
                 record.State = "interpreted";
                 record.Interpreted = text;
@@ -206,6 +212,13 @@ public sealed partial class AppModel
     void ApplyFailure(TaskRow row, CaptureRecord record, CaptureKind kind)
     {
         var (reason, tip, makeTaskFirst) = FailureCopy(kind);
+        if (row.IsReinterpret)
+        {
+            Dim(record.Id, false);
+            reason = "Re-interpret failed";
+            record.Correction = row.Title;
+        }
+
         row.Fail(reason, tip, makeTaskFirst);
         record.State = "failed";
         record.Cause = CauseName(kind);
@@ -273,7 +286,105 @@ public sealed partial class AppModel
         return Rerun(row, text);
     }
 
-    public void CancelCaptureEdit(TaskRow row) => row.CancelEdit();
+    public void CancelCaptureEdit(TaskRow row)
+    {
+        if (row.IsReinterpret && !row.IsFailed)
+        {
+            Tasks.Remove(row);
+            Dim(row.Capture, false);
+            return;
+        }
+
+        row.CancelEdit();
+    }
+
+    public void Reinterpret(TaskRow task)
+    {
+        if (task.NotTask || task.Capture.Length == 0)
+            return;
+
+        var record = captures.FirstOrDefault(capture => capture.Id == task.Capture);
+        if (record is null)
+            return;
+
+        if (Tasks.Any(row => row.IsReinterpret && row.Capture == task.Capture))
+            return;
+
+        var text = record.Interpreted.Length > 0 ? record.Interpreted : record.Text;
+        var row = new TaskRow(text, Priority.Medium, Effort.Short, "", record.Id);
+        row.BeginReinterpretEdit();
+        Tasks.Insert(0, row);
+    }
+
+    void ReplaceNotDone(TaskRow row, CaptureRecord record, List<CaptureContract.ParsedTask> parsed, string text, DateTimeOffset at)
+    {
+        var old = Tasks.Where(task => task != row && !task.NotTask && task.Capture == record.Id).ToList();
+        foreach (var task in old)
+            task.IsDimmed = false;
+
+        var prior = record.Interpreted;
+        var before = Tasks.Where(task => task != row).ToList();
+        Tasks.Remove(row);
+        foreach (var task in old)
+            Tasks.Remove(task);
+
+        record.State = "interpreted";
+        record.Interpreted = text;
+        record.Cause = "";
+        record.Correction = "";
+        for (var i = 0; i < parsed.Count; i++)
+        {
+            var task = parsed[i];
+            Place(new TaskRow(task.Title, task.Priority, task.Effort, task.Details, record.Id), at, i);
+        }
+
+        var after = Tasks.ToList();
+        MarkDirty();
+        NoteAttention();
+        Push(
+            "Re-interpret",
+            () =>
+            {
+                record.Interpreted = prior;
+                ShowRows(before);
+            },
+            () =>
+            {
+                record.Interpreted = text;
+                ShowRows(after);
+            },
+            pill: false);
+    }
+
+    void ShowRows(IReadOnlyList<TaskRow> rows)
+    {
+        for (var i = Tasks.Count - 1; i >= 0; i--)
+        {
+            if (!rows.Contains(Tasks[i]))
+                Tasks.RemoveAt(i);
+        }
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var at = Tasks.IndexOf(rows[i]);
+            if (at < 0)
+                Tasks.Insert(Math.Min(i, Tasks.Count), rows[i]);
+            else if (at != i)
+                Tasks.Move(at, i);
+        }
+
+        MarkDirty();
+        NoteAttention();
+    }
+
+    void Dim(string captureId, bool on)
+    {
+        foreach (var task in Tasks)
+        {
+            if (!task.NotTask && task.Capture == captureId)
+                task.IsDimmed = on;
+        }
+    }
 
     public void MakeTaskAsIs(TaskRow row)
     {
@@ -346,11 +457,24 @@ public sealed partial class AppModel
         if (index < 0)
             return;
 
+        var reinterpret = row.IsReinterpret;
         Tasks.RemoveAt(index);
         row.CancelEdit();
         var cause = record?.Cause ?? "";
+        var correction = record?.Correction ?? "";
         if (record is not null)
-            record.State = "discarded";
+        {
+            if (reinterpret)
+            {
+                record.State = "interpreted";
+                record.Cause = "";
+                record.Correction = "";
+            }
+            else
+            {
+                record.State = "discarded";
+            }
+        }
 
         Flush();
         NoteAttention();
@@ -364,6 +488,8 @@ public sealed partial class AppModel
                 {
                     record.State = "failed";
                     record.Cause = cause;
+                    if (reinterpret)
+                        record.Correction = correction;
                 }
 
                 Flush();
@@ -373,7 +499,19 @@ public sealed partial class AppModel
             {
                 Tasks.Remove(row);
                 if (record is not null)
-                    record.State = "discarded";
+                {
+                    if (reinterpret)
+                    {
+                        record.State = "interpreted";
+                        record.Cause = "";
+                        record.Correction = "";
+                    }
+                    else
+                    {
+                        record.State = "discarded";
+                    }
+                }
+
                 Flush();
                 NoteAttention();
             },
@@ -389,9 +527,12 @@ public sealed partial class AppModel
         if (record is null || (!row.IsFailed && !row.IsEditingCapture))
             return Task.CompletedTask;
 
-        record.Text = text;
+        if (!row.IsReinterpret)
+            record.Text = text;
         row.Title = text;
         row.BeginInterpret();
+        if (row.IsReinterpret)
+            Dim(record.Id, true);
         Flush();
         return RunCapture(row, record, text, clock.Now);
     }
@@ -409,9 +550,12 @@ public sealed partial class AppModel
 
     TaskRow FailedRow(CaptureRecord capture)
     {
-        var row = new TaskRow(capture.Text, Priority.Medium, Effort.Short, "", capture.Id);
+        var correcting = capture.Correction.Length > 0;
+        var row = new TaskRow(correcting ? capture.Correction : capture.Text, Priority.Medium, Effort.Short, "", capture.Id);
         var (reason, tip, makeTaskFirst) = FailureCopy(ParseCause(capture.Cause));
-        row.Fail(reason, tip, makeTaskFirst);
+        if (correcting)
+            row.MarkReinterpret();
+        row.Fail(correcting ? "Re-interpret failed" : reason, tip, makeTaskFirst);
         return row;
     }
 
