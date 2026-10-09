@@ -194,6 +194,6 @@ jobs:
           }
           $notes = Join-Path (Get-Location) "release-notes.md"
           [System.IO.File]::WriteAllText($notes, $body, (New-Object System.Text.UTF8Encoding $false))
-          gh release create $tag --draft --title $tag --notes-file $notes `
+          gh release create $tag --repo $env:GITHUB_REPOSITORY --draft --title $tag --notes-file $notes `
             "dist/TaskWidget-$version-x64.exe" `
             "dist/TaskWidget-$version-arm64.exe"
