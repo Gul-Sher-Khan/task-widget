@@ -98,6 +98,33 @@ jobs:
           -PublishDir "artifacts/${{ matrix.rid }}"
           -OutputDir "artifacts/installers"
 
+      # Install the x64 installer and start the installed app, the way a user gets it. Launching the publish
+      # folder is not enough: the installer leaves files out, and v1.0.0/v1.0.1 crashed only once installed.
+      # The runner is x64, so the ARM64 installer can't be run here.
+      - name: Install and start the x64 app
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = (Resolve-Path "artifacts/installers/TaskWidget-${{ needs.version.outputs.version }}-x64.exe").Path
+          $dir = Join-Path $env:RUNNER_TEMP "TaskWidget-smoke"
+          $setup = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$dir`"" -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "The installer exited with $($setup.ExitCode)." }
+          $exe = Join-Path $dir "TaskWidget.exe"
+          if (-not (Test-Path $exe)) { throw "TaskWidget.exe is missing after install." }
+          foreach ($run in 1..6) {
+            $psi = New-Object System.Diagnostics.ProcessStartInfo $exe
+            $psi.UseShellExecute = $false
+            # LOOK_SCENE opens sample data in a temp folder and makes no network calls.
+            $psi.EnvironmentVariables["LOOK_SCENE"] = "0"
+            $app = [System.Diagnostics.Process]::Start($psi)
+            Start-Sleep -Seconds 6
+            if ($app.HasExited) { throw ("Run {0}: the installed app exited with 0x{1:X8}." -f $run, $app.ExitCode) }
+            Stop-Process -Id $app.Id -Force
+            Start-Sleep -Seconds 1
+            Write-Host "Run ${run}: the installed app is up."
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.arch }}

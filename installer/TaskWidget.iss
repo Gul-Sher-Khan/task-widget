@@ -74,11 +74,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 WindowsVersionNotSupported=Task Widget requires Windows 11.
+FinishedLabel=Setup has finished installing Task Widget.
+ClickFinish=Click Finish to start Task Widget. It opens at the top right of your screen. After that, tap Ctrl+Shift anywhere to capture a thought.
 
 [Files]
 ; The self-contained Windows App SDK layout also copies AI, search, widgets, and WebView2.
 ; This app does not call them. Shipping them puts the installer over 20 MB.
-Source: "{#PublishDir}/*"; DestDir: "{app}"; Excludes: "*.pdb,*.xml,*.winmd,*.mui,onnxruntime.dll,DirectML.dll,NPUDetect.dll,PerceptiveStreaming.dll,WebView2Loader.dll,workloads*.json,Microsoft.Asg.*,Microsoft.Windows.AI.*,Microsoft.Windows.Search.*,Microsoft.Windows.SemanticSearch*,Microsoft.Windows.Widgets.*,Microsoft.Windows.Workloads*,Microsoft.Web.WebView2*,Microsoft.Graphics.Imaging*,Microsoft.Windows.Vision*,Microsoft.Windows.BadgeNotifications*,PushNotifications*,Microsoft.Windows.Management.Deployment*,Microsoft.Windows.Media.Capture*,Microsoft.Windows.Storage*,Microsoft.Windows.Security*,Microsoft.Windows.Internal*,Microsoft.Windows.Private*,Microsoft.Windows.Globalization*"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Keep the .mui language resources: without them WinUI crashes at start-up (0xC000027B) about half the time.
+Source: "{#PublishDir}/*"; DestDir: "{app}"; Excludes: "*.pdb,*.xml,*.winmd,onnxruntime.dll,DirectML.dll,NPUDetect.dll,PerceptiveStreaming.dll,WebView2Loader.dll,workloads*.json,Microsoft.Asg.*,Microsoft.Windows.AI.*,Microsoft.Windows.Search.*,Microsoft.Windows.SemanticSearch*,Microsoft.Windows.Widgets.*,Microsoft.Windows.Workloads*,Microsoft.Web.WebView2*,Microsoft.Graphics.Imaging*,Microsoft.Windows.Vision*,Microsoft.Windows.BadgeNotifications*,PushNotifications*,Microsoft.Windows.Management.Deployment*,Microsoft.Windows.Media.Capture*,Microsoft.Windows.Storage*,Microsoft.Windows.Security*,Microsoft.Windows.Internal*,Microsoft.Windows.Private*,Microsoft.Windows.Globalization*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
