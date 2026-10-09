@@ -31,6 +31,19 @@ public sealed partial class SettingsPanel : UserControl
 
     public AppModel Model { get; }
 
+    public void ScrollToAbout()
+    {
+        void Jump()
+        {
+            if (Scroller.ScrollableHeight <= 0)
+                return;
+            Scroller.ChangeView(null, Scroller.ScrollableHeight, null, true);
+        }
+
+        Loaded += (_, _) => Jump();
+        Scroller.SizeChanged += (_, _) => Jump();
+    }
+
     public Action<bool>? RecordingChanged { get; set; }
 
     public bool Recording

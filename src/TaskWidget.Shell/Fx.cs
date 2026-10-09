@@ -2,6 +2,7 @@ using System.Numerics;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media.Animation;
 
 namespace TaskWidget;
 
@@ -50,4 +51,19 @@ public static class Fx
             new Vector2((float)Resource(name + "X2"), (float)Resource(name + "Y2")));
 
     static double Resource(string key) => (double)Application.Current.Resources[key];
+
+    // DimFade="True": Opacity changes (Re-interpret dimming) animate over DimMs.
+    public static readonly DependencyProperty DimFadeProperty = DependencyProperty.RegisterAttached(
+        "DimFade", typeof(bool), typeof(Fx), new PropertyMetadata(false, (element, args) =>
+        {
+            if ((bool)args.NewValue)
+                ((UIElement)element).OpacityTransition = new ScalarTransition
+                {
+                    Duration = TimeSpan.FromMilliseconds(Resource("DimMs")),
+                };
+        }));
+
+    public static bool GetDimFade(UIElement element) => (bool)element.GetValue(DimFadeProperty);
+
+    public static void SetDimFade(UIElement element, bool value) => element.SetValue(DimFadeProperty, value);
 }

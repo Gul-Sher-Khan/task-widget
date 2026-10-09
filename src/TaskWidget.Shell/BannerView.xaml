@@ -19,7 +19,9 @@
                           Visibility="{x:Bind local:F.Both(Model.BannerIsWarning, Model.BannerNotBusy), Mode=OneWay}" />
                 <FontIcon Glyph="&#xE783;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                           Visibility="{x:Bind local:F.Both(Model.BannerIsError, Model.BannerNotBusy), Mode=OneWay}" />
-                <ProgressRing Width="14" Height="14" IsActive="{x:Bind Model.BannerBusy, Mode=OneWay}" Visibility="{x:Bind Model.BannerBusy, Mode=OneWay}" />
+                <ProgressRing Width="14" Height="14" IsActive="{x:Bind Model.BannerBusy, Mode=OneWay}"
+                              AutomationProperties.AccessibilityView="Raw"
+                              Visibility="{x:Bind Model.BannerBusy, Mode=OneWay}" />
             </Grid>
             <StackPanel Grid.Column="1" Spacing="2">
                 <TextBlock Text="{x:Bind Model.BannerMessage, Mode=OneWay}" FontSize="12.5" TextWrapping="Wrap"

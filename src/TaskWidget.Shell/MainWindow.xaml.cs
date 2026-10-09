@@ -7,6 +7,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
@@ -139,6 +140,81 @@ public sealed partial class MainWindow : Window
     {
         if (e.ClickedItem is TaskRow { IsEditing: false } task)
             Model.ToggleDetails(task);
+    }
+
+    void List_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.ItemContainer is null)
+            return;
+
+        if (args.InRecycleQueue)
+        {
+            UnhookRow(args.ItemContainer);
+            return;
+        }
+
+        if (args.Item is not TaskRow task)
+            return;
+
+        if (!ReferenceEquals(args.ItemContainer.Tag, task))
+        {
+            UnhookRow(args.ItemContainer);
+            args.ItemContainer.Tag = task;
+            task.PropertyChanged += RowChanged;
+        }
+
+        AutomationProperties.SetName(args.ItemContainer, Row.Announce(task));
+    }
+
+    void UnhookRow(FrameworkElement container)
+    {
+        if (container.Tag is TaskRow previous)
+            previous.PropertyChanged -= RowChanged;
+        container.Tag = null;
+    }
+
+    void RowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not TaskRow task)
+            return;
+        if (e.PropertyName is not (
+            nameof(TaskRow.Title) or nameof(TaskRow.Priority) or nameof(TaskRow.Effort)
+            or nameof(TaskRow.Reason) or nameof(TaskRow.PendingText)
+            or nameof(TaskRow.IsPending) or nameof(TaskRow.IsWaiting)
+            or nameof(TaskRow.IsFailed)))
+            return;
+
+        var index = List.Items.IndexOf(task);
+        if (index < 0 || List.ContainerFromIndex(index) is not FrameworkElement container)
+            return;
+        AutomationProperties.SetName(container, Row.Announce(task));
+    }
+
+    public void ApplyScreenshotOverrides()
+    {
+        if (!LookLaunch.Active)
+            return;
+
+        if (LookLaunch.OpenSettings)
+        {
+            Model.SettingsOpen = true;
+            if (LookLaunch.ShowUpdate && SettingsHost.Children.OfType<SettingsPanel>().FirstOrDefault() is SettingsPanel panel)
+                panel.ScrollToAbout();
+        }
+
+        if (!LookLaunch.Dictation)
+            return;
+
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(800);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            if (Model.Docked)
+                Model.Expand();
+            Model.Tap("");
+        };
+        timer.Start();
     }
 
     void Title_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1102,21 +1178,24 @@ public sealed partial class MainWindow : Window
     void ApplyLook()
     {
         bool contrast = appearance?.ContrastTheme == true;
-        Host.RequestedTheme = contrast
-            ? ElementTheme.Default
-            : Model.Theme switch
-            {
-                ThemeChoice.Light => ElementTheme.Light,
-                ThemeChoice.Dark => ElementTheme.Dark,
-                _ => ElementTheme.Default,
-            };
+        bool preview = LookLaunch.ContrastPreview && !contrast;
+        Host.RequestedTheme = preview
+            ? ElementTheme.Dark
+            : contrast
+                ? ElementTheme.Default
+                : Model.Theme switch
+                {
+                    ThemeChoice.Light => ElementTheme.Light,
+                    ThemeChoice.Dark => ElementTheme.Dark,
+                    _ => ElementTheme.Default,
+                };
 
         backdropController?.RemoveAllSystemBackdropTargets();
         backdropController?.Dispose();
         backdropController = null;
         backdropConfig = null;
 
-        var effective = contrast ? BackdropChoice.Solid : Model.EffectiveBackdrop;
+        var effective = contrast || preview ? BackdropChoice.Solid : Model.EffectiveBackdrop;
         if (effective == BackdropChoice.Solid)
         {
             Host.ClearValue(Grid.BackgroundProperty);

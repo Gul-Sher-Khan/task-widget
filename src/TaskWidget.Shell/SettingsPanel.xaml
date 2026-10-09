@@ -71,7 +71,8 @@
                             <TextBlock Text="Open and add a Capture" FontSize="13" />
                             <TextBlock Text="Tap to open, tap again to add" FontSize="11.5" Foreground="{ThemeResource MutedTextBrush}" />
                         </StackPanel>
-                        <Button x:Name="RecordButton" HorizontalAlignment="Right" Click="Record_Click" Padding="8,4,8,5" MinWidth="120">
+                        <Button x:Name="RecordButton" HorizontalAlignment="Right" Click="Record_Click" Padding="8,4,8,5" MinWidth="120"
+                                AutomationProperties.Name="{x:Bind local:F.HotkeyButton(Model.Hotkey, Recording), Mode=OneWay}">
                             <Grid>
                                 <TextBlock Text="{x:Bind Model.Hotkey, Mode=OneWay}" FontSize="12.5" FontWeight="SemiBold"
                                            Visibility="{x:Bind local:Row.Unless(Recording), Mode=OneWay}" />
@@ -104,10 +105,12 @@
                         <TextBlock Text="{x:Bind local:Row.CountText(Model.RowsBeforeScrolling), Mode=OneWay}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" />
                     </Grid>
                     <Slider x:Name="Rows" Minimum="4" Maximum="15" StepFrequency="1"
+                            AutomationProperties.Name="Rows before scrolling"
                             Value="{x:Bind Model.RowsBeforeScrollingValue, Mode=OneWay}" ValueChanged="Rows_Changed" />
                     <Grid Margin="0,4,0,0">
                         <TextBlock Text="Start with Windows" FontSize="13" VerticalAlignment="Center" />
                         <ToggleSwitch x:Name="Startup" IsOn="{x:Bind Model.StartWithWindows, Mode=OneWay}" OnContent="" OffContent="" MinWidth="0"
+                                      AutomationProperties.Name="Start with Windows"
                                       HorizontalAlignment="Right" Margin="0,0,-12,0" Toggled="Startup_Toggled" />
                     </Grid>
                 </StackPanel>
@@ -140,7 +143,8 @@
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind local:Row.When(Model.UpdChecking), Mode=OneWay}" MinHeight="32">
-                        <ProgressRing Width="14" Height="14" IsActive="{x:Bind Model.UpdChecking, Mode=OneWay}" />
+                        <ProgressRing Width="14" Height="14" IsActive="{x:Bind Model.UpdChecking, Mode=OneWay}"
+                                      AutomationProperties.AccessibilityView="Raw" />
                         <TextBlock Text="Checking for updates…" FontSize="13" VerticalAlignment="Center" />
                     </StackPanel>
 
@@ -171,6 +175,7 @@
                     <Grid>
                         <TextBlock Text="Check for updates automatically" FontSize="13" VerticalAlignment="Center" />
                         <ToggleSwitch x:Name="Auto" IsOn="{x:Bind Model.AutoUpdate, Mode=OneWay}" OnContent="" OffContent="" MinWidth="0"
+                                      AutomationProperties.Name="Check for updates automatically"
                                       HorizontalAlignment="Right" Margin="0,0,-12,0" Toggled="Auto_Toggled" />
                     </Grid>
                     <TextBlock Style="{StaticResource Caption}"

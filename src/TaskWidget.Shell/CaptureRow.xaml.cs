@@ -28,7 +28,9 @@ public sealed partial class CaptureRow : UserControl
         set => SetValue(ItemProperty, value);
     }
 
-    public string EditHint => "Fix the text, then Enter to retry · Esc to cancel";
+    public string EditHint => Item is { IsReinterpret: true, IsFailed: false }
+        ? "Fix the text, then Enter to re-interpret · Esc to cancel"
+        : "Fix the text, then Enter to retry · Esc to cancel";
 
     public FontWeight Weight(bool primary) => primary ? FontWeights.SemiBold : FontWeights.Normal;
 
@@ -38,12 +40,15 @@ public sealed partial class CaptureRow : UserControl
             old.PropertyChanged -= Item_Changed;
         if (now is not null)
             now.PropertyChanged += Item_Changed;
+        Hint.Text = EditHint;
         if (now is { IsEditingCapture: true })
             BeginEdit();
     }
 
     void Item_Changed(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(TaskRow.IsEditingCapture) or nameof(TaskRow.IsFailed) or nameof(TaskRow.IsReinterpret))
+            Hint.Text = EditHint;
         if (e.PropertyName == nameof(TaskRow.IsEditingCapture) && Item is { IsEditingCapture: true })
             BeginEdit();
     }

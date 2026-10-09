@@ -9,23 +9,36 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        if (!InstanceGate.TryAcquire(InstanceGate.DefaultName, out var gate))
+        LookLaunch.Prepare();
+        var gateName = LookLaunch.Active ? LookLaunch.GateName : InstanceGate.DefaultName;
+        if (!InstanceGate.TryAcquire(gateName, out var gate))
         {
             DesktopLayer.LetAnotherProcessTakeTheForeground();
-            InstanceGate.SignalRaise(InstanceGate.DefaultName);
+            InstanceGate.SignalRaise(gateName);
             Environment.Exit(0);
             return;
         }
 
-        var folder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TaskWidget");
-        var model = new AppModel(folder, new SystemClock(), new HttpClientHandler(), new SystemBrowser(), new DpapiProtector(), network: new SystemNetwork());
+        var folder = LookLaunch.Active
+            ? LookLaunch.Folder
+            : Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "TaskWidget");
+        var model = new AppModel(
+            folder,
+            new SystemClock(),
+            LookLaunch.CreateHandler(),
+            new SystemBrowser(),
+            new DpapiProtector(),
+            network: LookLaunch.CreateNetwork());
+        LookLaunch.AfterModel(model);
         var window = new MainWindow(model);
         gate.RaiseRequested += () => window.DispatcherQueue.TryEnqueue(window.Raise);
         model.BringToFront += () => window.DispatcherQueue.TryEnqueue(window.Raise);
         gate.Listen();
         window.Closed += (_, _) => gate.Dispose();
         window.Activate();
+        if (LookLaunch.Active)
+            window.DispatcherQueue.TryEnqueue(window.ApplyScreenshotOverrides);
     }
 }

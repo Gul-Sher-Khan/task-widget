@@ -26,11 +26,15 @@
                            ToolTipService.ToolTip="{x:Bind Item.ReasonTip, Mode=OneWay}" />
                 <StackPanel Orientation="Horizontal" Spacing="12" Margin="-1,1,0,0">
                     <HyperlinkButton Content="Retry" Style="{StaticResource Act}" Click="Retry_Click"
+                                     IsEnabled="{x:Bind local:Row.AllowEdits, Mode=OneTime}"
                                      FontWeight="{x:Bind Weight(Item.RetryFirst), Mode=OneWay}" />
-                    <HyperlinkButton Content="Edit" Style="{StaticResource Act}" Click="Edit_Click" />
+                    <HyperlinkButton Content="Edit" Style="{StaticResource Act}" Click="Edit_Click"
+                                     IsEnabled="{x:Bind local:Row.AllowEdits, Mode=OneTime}" />
                     <HyperlinkButton Content="Make a Task as-is" Style="{StaticResource Act}" Click="Make_Click"
+                                     IsEnabled="{x:Bind local:Row.AllowEdits, Mode=OneTime}"
                                      FontWeight="{x:Bind Weight(Item.MakeTaskFirst), Mode=OneWay}" />
-                    <HyperlinkButton Content="Discard" Style="{StaticResource Act}" Click="Discard_Click" />
+                    <HyperlinkButton Content="Discard" Style="{StaticResource Act}" Click="Discard_Click"
+                                     IsEnabled="{x:Bind local:Row.AllowEdits, Mode=OneTime}" />
                 </StackPanel>
             </StackPanel>
         </Grid>
@@ -41,8 +45,8 @@
             </Grid.ColumnDefinitions>
             <FontIcon Glyph="&#xE70F;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Top" Margin="0,8,0,0" />
             <StackPanel Grid.Column="1" Spacing="4">
-                <TextBox x:Name="Edit" FontSize="13.5" Padding="8,5,8,5" MinHeight="0" AcceptsReturn="True" TextWrapping="Wrap" />
-                <TextBlock Text="{x:Bind EditHint, Mode=OneWay}" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}" />
+                <TextBox x:Name="Edit" AutomationProperties.Name="Capture" FontSize="13.5" Padding="8,5,8,5" MinHeight="0" AcceptsReturn="True" TextWrapping="Wrap" />
+                <TextBlock x:Name="Hint" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}" />
             </StackPanel>
         </Grid>
     </Grid>

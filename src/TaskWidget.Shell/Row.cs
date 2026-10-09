@@ -34,6 +34,18 @@ public static class Row
         _ => "Long · more than an hour",
     };
 
+    // What a Task row says to a screen reader: Title, Priority, Effort.
+    public static string Announce(TaskRow task)
+    {
+        if (task.IsTaskRow)
+            return task.Title + ", " + PriorityTip(task.Priority) + ", " + EffortTip(task.Effort);
+        if (task.IsPending && task.PendingText.Length > 0)
+            return task.Title + ", " + task.PendingText;
+        if (task.Reason.Length > 0)
+            return task.Title + ", " + task.Reason;
+        return task.Title;
+    }
+
     public static string CountText(int count) => count.ToString();
 
     public static bool AllowEdits { get; set; } = true;

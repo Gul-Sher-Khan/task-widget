@@ -19,7 +19,7 @@
                 <TextBlock Text="{x:Bind local:F.TapLine(Model.Hotkey), Mode=OneWay}" FontSize="13" />
                 <StackPanel Orientation="Horizontal" Spacing="5">
                     <TextBlock Text="Collapse to the Dock with" FontSize="13" />
-                    <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                    <FontIcon Glyph="&#xE70E;" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
                 </StackPanel>
             </StackPanel>
         </StackPanel>
