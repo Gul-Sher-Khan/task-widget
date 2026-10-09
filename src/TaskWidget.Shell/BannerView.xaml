@@ -6,7 +6,7 @@
     <Grid BorderBrush="{ThemeResource HairlineBrush}" BorderThickness="0,1,0,1">
         <Rectangle Fill="{ThemeResource SystemFillColorAttentionBackgroundBrush}" Visibility="{x:Bind local:Row.When(Model.BannerIsInfo), Mode=OneWay}" />
         <Rectangle Fill="{ThemeResource SystemFillColorCautionBackgroundBrush}" Visibility="{x:Bind local:Row.When(Model.BannerIsWarning), Mode=OneWay}" />
-        <Rectangle Fill="{ThemeResource SystemFillColorCriticalBackgroundBrush}" Visibility="Collapsed" />
+        <Rectangle Fill="{ThemeResource SystemFillColorCriticalBackgroundBrush}" Visibility="{x:Bind local:Row.When(Model.BannerIsError), Mode=OneWay}" />
         <Grid Padding="16,9,12,8" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -14,14 +14,16 @@
             </Grid.ColumnDefinitions>
             <Grid Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,0,0">
                 <FontIcon Glyph="&#xE946;" FontSize="14" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                          Visibility="{x:Bind local:Row.When(Model.BannerIsInfo), Mode=OneWay}" />
+                          Visibility="{x:Bind local:F.Both(Model.BannerIsInfo, Model.BannerNotBusy), Mode=OneWay}" />
                 <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                          Visibility="{x:Bind local:Row.When(Model.BannerIsWarning), Mode=OneWay}" />
-                <FontIcon Glyph="&#xE783;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
-                <ProgressRing Width="14" Height="14" IsActive="False" Visibility="Collapsed" />
+                          Visibility="{x:Bind local:F.Both(Model.BannerIsWarning, Model.BannerNotBusy), Mode=OneWay}" />
+                <FontIcon Glyph="&#xE783;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                          Visibility="{x:Bind local:F.Both(Model.BannerIsError, Model.BannerNotBusy), Mode=OneWay}" />
+                <ProgressRing Width="14" Height="14" IsActive="{x:Bind Model.BannerBusy, Mode=OneWay}" Visibility="{x:Bind Model.BannerBusy, Mode=OneWay}" />
             </Grid>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock Text="{x:Bind Model.BannerMessage, Mode=OneWay}" FontSize="12.5" TextWrapping="Wrap" />
+                <TextBlock Text="{x:Bind Model.BannerMessage, Mode=OneWay}" FontSize="12.5" TextWrapping="Wrap"
+                           ToolTipService.ToolTip="{x:Bind Model.BannerTip, Mode=OneWay}" />
                 <StackPanel Orientation="Horizontal" Spacing="14" Margin="-1,0,0,0">
                     <HyperlinkButton Content="{x:Bind Model.BannerPrimary, Mode=OneWay}" Click="Primary_Click" FontSize="12.5" Padding="0,2,0,2"
                                      Visibility="{x:Bind local:Row.WhenText(Model.BannerPrimary), Mode=OneWay}" />

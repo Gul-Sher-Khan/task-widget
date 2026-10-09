@@ -11,6 +11,7 @@ public sealed partial class AppModel
 {
     const string AuthorizeEndpoint = "https://auth.openai.com/api/accounts/authorize";
     const string TokenEndpoint = "https://auth.openai.com/api/accounts/oauth/token";
+    const string RevokeEndpoint = "https://auth.openai.com/api/accounts/oauth/revoke";
     const string ModelsEndpoint = "https://api.openai.com/v1/models";
     const string Resource = "https://api.openai.com/v1";
     const string Scopes = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct";
@@ -180,7 +181,14 @@ public sealed partial class AppModel
         var json = JsonSerializer.Serialize(record, WidgetJsonContext.Default.TokenFile);
         SwapIn(tokenPath, protector.Protect(Encoding.UTF8.GetBytes(json)));
         settingsFile.WelcomeRetired = true;
+        settingsFile.ReauthEmail = "";
         accessToken = record.AccessToken;
+        refreshToken = record.RefreshToken;
+        idToken = record.IdToken;
+        clientId = record.ClientId;
+        accessExpiresAt = record.AccessExpiresAt;
+        refreshExpiresAt = record.RefreshExpiresAt;
+        RememberIdentity(idToken);
         HasConnection = true;
         SignInStatus = "";
         SignInCause = "";
@@ -188,6 +196,36 @@ public sealed partial class AppModel
         RaiseWelcome();
         MarkDirty();
         BringToFront?.Invoke();
+        ReleaseWaiting();
+    }
+
+    public async Task SignOut()
+    {
+        if (httpClient is not null && refreshToken.Length > 0)
+        {
+            try
+            {
+                var issued = clientId.Length > 0 ? clientId : settingsFile.IssuedClientId;
+                var body = new Dictionary<string, string>
+                {
+                    ["token"] = refreshToken,
+                    ["token_type_hint"] = "refresh_token",
+                    ["client_id"] = issued,
+                };
+                using var request = new HttpRequestMessage(HttpMethod.Post, RevokeEndpoint)
+                {
+                    Content = new FormUrlEncodedContent(body),
+                };
+                await httpClient.SendAsync(request);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException)
+            {
+            }
+        }
+
+        DropConnection();
+        MarkDirty();
+        ReleaseWaiting();
     }
 
     void EnsureHostId()
@@ -204,7 +242,7 @@ public sealed partial class AppModel
         var clientId = settingsFile.IssuedClientId.Length > 0
             ? settingsFile.IssuedClientId
             : "dynamic_agent_client";
-        var pairs = new (string Key, string Value)[]
+        var pairs = new List<(string Key, string Value)>
         {
             ("response_type", "code"),
             ("client_id", clientId),
@@ -218,6 +256,8 @@ public sealed partial class AppModel
             ("agent_name_hint", "Task Widget"),
             ("ext_agent_host_id", settingsFile.ExtAgentHostId),
         };
+        if (settingsFile.ReauthEmail.Length > 0)
+            pairs.Add(("login_hint", settingsFile.ReauthEmail));
         var query = string.Join("&", pairs.Select(pair =>
             Uri.EscapeDataString(pair.Key) + "=" + Uri.EscapeDataString(pair.Value)));
         return new Uri(AuthorizeEndpoint + "?" + query);
@@ -292,6 +332,7 @@ public sealed partial class AppModel
 
         settingsFile.Models = models;
         settingsFile.ModelsCachedAt = clock.UtcNow;
+        NoteModels(models);
         return true;
     }
 
@@ -332,6 +373,207 @@ public sealed partial class AppModel
         SignInCause = "";
         SignInStatus = "This ChatGPT plan can't be used in Task Widget. Go, Plus or Pro works.";
         SignInState = SignInPhase.NotEligible;
+    }
+
+    static readonly TimeSpan RefreshLead = TimeSpan.FromMinutes(5);
+
+    bool AccessNeedsRefresh() =>
+        accessToken.Length == 0 || accessExpiresAt - clock.UtcNow < RefreshLead;
+
+    async Task<bool> EnsureAccess(bool force)
+    {
+        Task<bool> task;
+        lock (refreshGate)
+        {
+            if (refreshInFlight is not null)
+                task = refreshInFlight;
+            else if (!force && !AccessNeedsRefresh())
+                return true;
+            else
+                refreshInFlight = task = RefreshCore();
+        }
+
+        try
+        {
+            return await task;
+        }
+        finally
+        {
+            lock (refreshGate)
+            {
+                if (ReferenceEquals(refreshInFlight, task))
+                    refreshInFlight = null;
+            }
+        }
+    }
+
+    async Task<bool> RefreshCore()
+    {
+        if (httpClient is null || refreshToken.Length == 0 || protector is null)
+            return false;
+
+        var issued = clientId.Length > 0 ? clientId : settingsFile.IssuedClientId;
+        var body = new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["refresh_token"] = refreshToken,
+            ["client_id"] = issued,
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, TokenEndpoint)
+        {
+            Content = new FormUrlEncodedContent(body),
+        };
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            DropConnection(reauth: true);
+            return false;
+        }
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = doc.RootElement;
+        if (!root.TryGetProperty("access_token", out var access)
+            || access.GetString() is not { Length: > 0 } nextAccess)
+        {
+            DropConnection(reauth: true);
+            return false;
+        }
+
+        var nextRefresh = refreshToken;
+        if (root.TryGetProperty("refresh_token", out var refresh) && refresh.GetString() is { Length: > 0 } rotated)
+            nextRefresh = rotated;
+        var nextId = idToken;
+        if (root.TryGetProperty("id_token", out var id) && id.GetString() is { Length: > 0 } rotatedId)
+            nextId = rotatedId;
+        var expiresIn = 3600;
+        if (root.TryGetProperty("expires_in", out var expires) && expires.TryGetInt32(out var seconds) && seconds > 0)
+            expiresIn = seconds;
+
+        var now = clock.UtcNow;
+        accessToken = nextAccess;
+        refreshToken = nextRefresh;
+        idToken = nextId;
+        accessExpiresAt = now.AddSeconds(expiresIn);
+        refreshExpiresAt = now.AddDays(30);
+        var record = new TokenFile
+        {
+            ClientId = issued,
+            ExtAgentHostId = settingsFile.ExtAgentHostId,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            IdToken = idToken,
+            AccessExpiresAt = accessExpiresAt,
+            RefreshExpiresAt = refreshExpiresAt,
+        };
+        var json = JsonSerializer.Serialize(record, WidgetJsonContext.Default.TokenFile);
+        SwapIn(tokenPath, protector.Protect(Encoding.UTF8.GetBytes(json)));
+        return true;
+    }
+
+    void DropConnection(bool reauth = false)
+    {
+        if (reauth)
+        {
+            var email = EmailOf(idToken);
+            if (email.Length > 0)
+                settingsFile.ReauthEmail = email;
+        }
+        else
+        {
+            settingsFile.ReauthEmail = "";
+        }
+
+        accessToken = "";
+        refreshToken = "";
+        idToken = "";
+        accessExpiresAt = default;
+        refreshExpiresAt = default;
+        try
+        {
+            if (File.Exists(tokenPath))
+                File.Delete(tokenPath);
+        }
+        catch (IOException)
+        {
+        }
+
+        HasConnection = false;
+        RememberIdentity("");
+        if (reauth)
+            MarkDirty();
+    }
+
+    void RememberIdentity(string jwt)
+    {
+        accountEmail = "";
+        planName = "";
+        if (jwt.Length > 0)
+        {
+            var parts = jwt.Split('.');
+            if (parts.Length >= 2)
+            {
+                try
+                {
+                    var json = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("email", out var email))
+                        accountEmail = email.GetString() ?? "";
+                    if (root.TryGetProperty("https://api.openai.com/auth", out var auth)
+                        && auth.ValueKind == JsonValueKind.Object
+                        && auth.TryGetProperty("chatgpt_plan_type", out var plan))
+                        planName = PlanLabel(plan.GetString() ?? "");
+                }
+                catch (Exception ex) when (ex is JsonException or FormatException)
+                {
+                }
+            }
+        }
+
+        OnPropertyChanged(nameof(Account));
+        OnPropertyChanged(nameof(Plan));
+        OnPropertyChanged(nameof(AccountInitial));
+    }
+
+    static string PlanLabel(string plan) => plan.ToLowerInvariant() switch
+    {
+        "pro" => "ChatGPT Pro",
+        "plus" => "ChatGPT Plus",
+        "team" => "ChatGPT Team",
+        "go" => "ChatGPT Go",
+        "free" => "ChatGPT Free",
+        "" => "",
+        _ => "ChatGPT " + char.ToUpperInvariant(plan[0]) + plan[1..],
+    };
+
+    static string EmailOf(string jwt)
+    {
+        var parts = jwt.Split('.');
+        if (parts.Length < 2)
+            return "";
+
+        try
+        {
+            var json = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("email", out var email) ? email.GetString() ?? "" : "";
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException)
+        {
+            return "";
+        }
+    }
+
+    static byte[] Base64UrlDecode(string text)
+    {
+        var padded = text.Replace('-', '+').Replace('_', '/');
+        padded = (padded.Length % 4) switch
+        {
+            2 => padded + "==",
+            3 => padded + "=",
+            _ => padded,
+        };
+        return Convert.FromBase64String(padded);
     }
 
     static string CallbackPage(Dictionary<string, string> query, string state)

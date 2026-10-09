@@ -233,7 +233,9 @@ public sealed class StorageDurabilityTests
             """);
 
             var model = new AppModel(folder, new ManualClock(now));
-            Assert.Equal("fix the login test", Assert.Single(model.Tasks).Title);
+            Assert.Equal(["waiting on the bank", "fix the login test"], model.Tasks.Select(task => task.Title).ToArray());
+            Assert.True(model.Tasks[0].IsFailed);
+            Assert.Equal("fix the login test", Assert.Single(model.Tasks, task => !task.NotTask).Title);
             Assert.Equal(
                 ["book the dentist", "send the receipt", "pay the bill"],
                 model.DoneTasks.Select(task => task.Title).ToArray());
@@ -272,7 +274,9 @@ public sealed class StorageDurabilityTests
             model.Dispose();
 
             var again = new AppModel(folder, new ManualClock(now));
-            Assert.Equal("fix the login test", Assert.Single(again.Tasks).Title);
+            Assert.Equal(["waiting on the bank", "fix the login test"], again.Tasks.Select(task => task.Title).ToArray());
+            Assert.True(again.Tasks[0].IsFailed);
+            Assert.Equal("fix the login test", Assert.Single(again.Tasks, task => !task.NotTask).Title);
             Assert.Equal(
                 ["book the dentist", "send the receipt", "pay the bill"],
                 again.DoneTasks.Select(task => task.Title).ToArray());

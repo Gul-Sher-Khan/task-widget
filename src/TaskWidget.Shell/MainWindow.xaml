@@ -5,6 +5,10 @@
     xmlns:local="using:TaskWidget"
     xmlns:core="using:TaskWidget.Core">
     <Grid x:Name="Host" Background="{ThemeResource SurfaceSolidBrush}">
+        <ScrollViewer x:Name="WidgetScroll" HorizontalAlignment="Left" VerticalAlignment="Top"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled"
+                      ZoomMode="Disabled" IsTabStop="False" Background="Transparent">
         <Grid x:Name="Root" Width="360" Padding="0,0,0,8" HorizontalAlignment="Left" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -16,7 +20,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Padding="16,10,8,4" ColumnSpacing="2">
+            <Grid x:Name="HeaderStrip" Padding="16,10,8,4" ColumnSpacing="2" Background="Transparent" PointerPressed="Header_PointerPressed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -107,7 +111,21 @@
                     </ListView.ItemContainerTransitions>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="core:TaskRow">
-                        <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent">
+                        <Grid>
+                        <Grid Padding="8,7,6,7" ColumnSpacing="10" Visibility="{x:Bind IsWaiting, Mode=OneWay}" local:Fx.Enter="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="22" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE823;" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13.5" TextWrapping="Wrap" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis" Foreground="{ThemeResource MutedTextBrush}" />
+                                <TextBlock Text="{x:Bind Reason, Mode=OneWay}" FontSize="11.5" Foreground="{ThemeResource FaintTextBrush}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Padding="8,7,6,7" ColumnSpacing="10" Background="Transparent"
+                              Visibility="{x:Bind local:Row.When(IsTaskRow), Mode=OneWay}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -164,6 +182,8 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
+                        <local:CaptureRow Item="{x:Bind}" Visibility="{x:Bind local:Row.When(IsCaptureRow), Mode=OneWay}" />
+                        </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
                 </ListView>
@@ -195,6 +215,7 @@
 
             <Grid x:Name="SettingsHost" Grid.Row="6" Visibility="{x:Bind Model.SettingsOpen, Mode=OneWay}" />
         </Grid>
+        </ScrollViewer>
 
         <Grid x:Name="DockRoot" Height="44" Width="380" HorizontalAlignment="Left" VerticalAlignment="Top"
               Background="Transparent" Visibility="Collapsed" PointerPressed="Dock_PointerPressed">

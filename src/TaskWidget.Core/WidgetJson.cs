@@ -50,8 +50,11 @@ sealed class SettingsFile
     public string UpdateResult { get; set; } = "";
     public string InstallerUrl { get; set; } = "";
     public bool WelcomeRetired { get; set; }
+    public string HomeMonitor { get; set; } = "";
     public string ExtAgentHostId { get; set; } = "";
     public string IssuedClientId { get; set; } = "";
+    public string ReauthEmail { get; set; } = "";
+    public string ChosenModel { get; set; } = "";
     public string Hotkey { get; set; } = "";
     public DateTimeOffset ModelsCachedAt { get; set; }
     public List<CachedModel> Models { get; set; } = [];

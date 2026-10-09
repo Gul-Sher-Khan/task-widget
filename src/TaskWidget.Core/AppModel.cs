@@ -47,11 +47,19 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     readonly IBrowserLauncher? browser;
     readonly IDataProtector? protector;
     readonly object gate = new();
+    readonly object rows = new();
     SettingsFile settingsFile = new() { SchemaVersion = 1 };
     readonly Dictionary<TaskRow, DateTimeOffset> created = [];
     readonly Dictionary<TaskRow, int> spoken = [];
     readonly List<CaptureRecord> captures = [];
     string accessToken = "";
+    string refreshToken = "";
+    string idToken = "";
+    string clientId = "";
+    DateTimeOffset accessExpiresAt;
+    DateTimeOffset refreshExpiresAt;
+    readonly object refreshGate = new();
+    Task<bool>? refreshInFlight;
     string? pendingTasks;
     string? pendingSettings;
     IDisposable? saveTimer;
@@ -86,6 +94,8 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     bool readOnly;
     bool tasksNeedSave;
 
+    readonly INetwork? network;
+
     public AppModel(string dataFolder, IClock clock, string? runKeyPath = null)
         : this(dataFolder, clock, null, null, null, runKeyPath)
     {
@@ -97,13 +107,15 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         HttpMessageHandler? http,
         IBrowserLauncher? browser = null,
         IDataProtector? protector = null,
-        string? runKeyPath = null)
+        string? runKeyPath = null,
+        INetwork? network = null)
     {
         ui = SynchronizationContext.Current;
         this.clock = clock;
         this.http = http;
         this.browser = browser;
         this.protector = protector;
+        this.network = network;
         this.runKeyPath = runKeyPath ?? DefaultRunKeyPath;
         if (http is not null)
             httpClient = new HttpClient(http, disposeHandler: false);
@@ -123,6 +135,19 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         };
         Load();
         startWithWindows = RunValueExists();
+        if (network is not null)
+        {
+            network.Changed += () =>
+            {
+                if (ui is not null)
+                    ui.Post(_ => ReleaseWaiting(), null);
+                else
+                    ReleaseWaiting();
+            };
+        }
+
+        SettleModelChoice();
+        ReleaseWaiting();
         if (http is not null && checkAutomatically && CheckDue())
             inFlight = CheckOnce();
     }
@@ -141,7 +166,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public bool Attention
     {
-        get => attention || updateReady;
+        get => attention || updateReady || SignedOut || Tasks.Any(task => task.IsFailed || (task.IsWaiting && task.LightsDot));
         set
         {
             if (attention == value)
@@ -150,6 +175,70 @@ public sealed partial class AppModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Attention));
         }
     }
+
+    string accountEmail = "";
+    string planName = "";
+
+    public string Account => accountEmail;
+
+    public string Plan => planName;
+
+    public string AccountInitial => accountEmail.Length == 0
+        ? ""
+        : char.ToUpperInvariant(accountEmail[0]).ToString();
+
+    public string[] ModelChoices { get; private set; } = ["Automatic"];
+
+    public int ModelIndex
+    {
+        get
+        {
+            if (settingsFile.ChosenModel.Length == 0)
+                return 0;
+            var index = settingsFile.Models.FindIndex(model => model.Slug == settingsFile.ChosenModel);
+            return index < 0 ? 0 : index + 1;
+        }
+        set
+        {
+            var slug = value <= 0 || value > settingsFile.Models.Count ? "" : settingsFile.Models[value - 1].Slug;
+            if (settingsFile.ChosenModel == slug)
+                return;
+            settingsFile.ChosenModel = slug;
+            OnPropertyChanged(nameof(ModelIndex));
+            MarkDirty();
+        }
+    }
+
+    void SettleModelChoice()
+    {
+        if (settingsFile.ChosenModel.Length > 0
+            && settingsFile.Models.All(model => model.Slug != settingsFile.ChosenModel))
+            settingsFile.ChosenModel = "";
+        PublishModels();
+    }
+
+    void NoteModels(List<CachedModel> models)
+    {
+        settingsFile.Models = models;
+        settingsFile.ModelsCachedAt = clock.UtcNow;
+        if (settingsFile.ChosenModel.Length > 0 && models.All(model => model.Slug != settingsFile.ChosenModel))
+            settingsFile.ChosenModel = "";
+        PublishModels();
+        MarkDirty();
+    }
+
+    void PublishModels()
+    {
+        var auto = AutomaticSlug();
+        var label = auto.Length > 0 ? "Automatic (" + auto + ")" : "Automatic";
+        ModelChoices = [label, .. settingsFile.Models.Select(model => model.Slug)];
+        OnPropertyChanged(nameof(ModelChoices));
+        OnPropertyChanged(nameof(ModelIndex));
+    }
+
+    public bool SignedOut => settingsFile.WelcomeRetired && !HasConnection;
+
+    bool Online => network is null || network.Online;
 
     // Newer version outranks signed out, which outranks recovered and started empty.
     public WidgetBanner Banner
@@ -176,7 +265,13 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     {
         WidgetBanner.NewerVersion => "Version " + newVersion + " is available",
         WidgetBanner.NewerFile => "These tasks were saved by a newer Task Widget. Update to make changes.",
-        WidgetBanner.SignedOut => "You're signed out of ChatGPT. New Captures wait until you sign in.",
+        WidgetBanner.SignedOut => SignInState switch
+        {
+            SignInPhase.Waiting => "Waiting for your browser…",
+            SignInPhase.Failed => "Sign-in didn't finish",
+            SignInPhase.NotEligible => "This ChatGPT plan can't be used in Task Widget. Go, Plus or Pro works.",
+            _ => "You're signed out of ChatGPT. New Captures wait until you sign in.",
+        },
         WidgetBanner.Recovered => "Your task list was damaged and has been restored from a backup (saved " + recoveredAt + ").",
         WidgetBanner.StartedEmpty => "Your task list couldn't be read, so Task Widget started fresh. The old file was kept.",
         _ => "",
@@ -185,16 +280,17 @@ public sealed partial class AppModel : ObservableObject, IDisposable
     public string BannerPrimary => Banner switch
     {
         WidgetBanner.NewerVersion or WidgetBanner.NewerFile => "Get update",
-        WidgetBanner.SignedOut => "Sign in",
+        WidgetBanner.SignedOut => SignInState switch
+        {
+            SignInPhase.Waiting => "Cancel",
+            SignInPhase.Failed => "Try again",
+            _ => "Sign in",
+        },
         WidgetBanner.Recovered or WidgetBanner.StartedEmpty => "Open folder",
         _ => "",
     };
 
     public bool BannerIsInfo => Banner is WidgetBanner.NewerVersion or WidgetBanner.NewerFile or WidgetBanner.Recovered;
-
-    public bool BannerIsWarning => Banner is WidgetBanner.SignedOut or WidgetBanner.StartedEmpty;
-
-    bool SignedOut => settingsFile.WelcomeRetired && !HasConnection;
 
     public bool ReadOnly => readOnly;
 
@@ -229,6 +325,18 @@ public sealed partial class AppModel : ObservableObject, IDisposable
         RaiseBanner();
     }
 
+    public bool BannerIsWarning => Banner == WidgetBanner.StartedEmpty
+        || (Banner == WidgetBanner.SignedOut && SignInState is not (SignInPhase.Failed or SignInPhase.NotEligible));
+
+    public bool BannerIsError => Banner == WidgetBanner.SignedOut
+        && SignInState is SignInPhase.Failed or SignInPhase.NotEligible;
+
+    public bool BannerBusy => Banner == WidgetBanner.SignedOut && SignInState == SignInPhase.Waiting;
+
+    public bool BannerNotBusy => !BannerBusy;
+
+    public string BannerTip => Banner == WidgetBanner.SignedOut && SignInState == SignInPhase.Failed ? SignInCause : "";
+
     public bool CanCheck => phase is UpdatePhase.Idle or UpdatePhase.Current or UpdatePhase.Failed;
 
     [ObservableProperty]
@@ -252,7 +360,7 @@ public sealed partial class AppModel : ObservableObject, IDisposable
 
     public event Action? RaiseRequested;
 
-    public int OpenTaskCount => Tasks.Count(task => !task.IsPending);
+    public int OpenTaskCount => Tasks.Count(task => !task.NotTask);
 
 public void Move(TaskRow task, int index)
     {
@@ -260,7 +368,7 @@ public void Move(TaskRow task, int index)
             return;
 
         var from = Tasks.IndexOf(task);
-        if (from < 0 || index < 0 || index >= Tasks.Count || index == from)
+        if (from < 0 || index < 0 || index >= Tasks.Count || index == from || task.NotTask || Tasks[index].NotTask)
             return;
 
         var wasManual = HasManualPositions;
@@ -291,8 +399,8 @@ public void Move(TaskRow task, int index)
 
         var before = Tasks.ToList();
         var wasManual = HasManualPositions;
-        var pending = before.Where(task => task.IsPending).ToList();
-        var sorted = before.Where(task => !task.IsPending).OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
+        var pending = before.Where(task => task.NotTask).ToList();
+        var sorted = before.Where(task => !task.NotTask).OrderBy(task => task, Comparer<TaskRow>.Create(CompareRank)).ToList();
         var order = pending.Concat(sorted).ToList();
         Apply(order);
         SetManual(false);
@@ -362,7 +470,7 @@ public void Move(TaskRow task, int index)
 
     public void ToggleDetails(TaskRow task)
     {
-        if (!task.HasDetails || (!Tasks.Contains(task) && !finished.Contains(task)))
+        if (task.NotTask || !task.HasDetails || (!Tasks.Contains(task) && !finished.Contains(task)))
             return;
 
         var open = !task.IsExpanded;
@@ -379,7 +487,7 @@ public void Move(TaskRow task, int index)
 
     public void BeginTitleEdit(TaskRow task)
     {
-        if (ReadOnly)
+        if (ReadOnly || task.NotTask)
             return;
 
         if (Tasks.Contains(task) || finished.Contains(task))
@@ -394,7 +502,7 @@ public void Move(TaskRow task, int index)
             return;
 
         task.IsEditing = false;
-        if (!Tasks.Contains(task) && !finished.Contains(task))
+        if (task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
             return;
 
         title = title.Trim();
@@ -408,10 +516,7 @@ public void Move(TaskRow task, int index)
 
     public void CyclePriority(TaskRow task)
     {
-        if (ReadOnly)
-            return;
-
-        if (!Tasks.Contains(task) && !finished.Contains(task))
+        if (ReadOnly || task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
             return;
 
         var old = task.Priority;
@@ -435,10 +540,7 @@ public void Move(TaskRow task, int index)
 
     public void CycleEffort(TaskRow task)
     {
-        if (ReadOnly)
-            return;
-
-        if (!Tasks.Contains(task) && !finished.Contains(task))
+        if (ReadOnly || task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
             return;
 
         var old = task.Effort;
@@ -462,10 +564,7 @@ public void Move(TaskRow task, int index)
 
     public void EditDetails(TaskRow task, string details)
     {
-        if (ReadOnly)
-            return;
-
-        if (!Tasks.Contains(task) && !finished.Contains(task))
+        if (ReadOnly || task.NotTask || (!Tasks.Contains(task) && !finished.Contains(task)))
             return;
 
         details = details.Trim();
@@ -592,7 +691,7 @@ public void Move(TaskRow task, int index)
 
     public void Delete(TaskRow task)
     {
-        if (ReadOnly)
+        if (ReadOnly || task.NotTask)
             return;
 
         CancelStrike(task);
@@ -638,11 +737,11 @@ public void Move(TaskRow task, int index)
             pill: true);
     }
 
-    public int OpenHighCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.High);
+    public int OpenHighCount => Tasks.Count(task => !task.NotTask && task.Priority == Priority.High);
 
-    public int OpenMediumCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Medium);
+    public int OpenMediumCount => Tasks.Count(task => !task.NotTask && task.Priority == Priority.Medium);
 
-    public int OpenLowCount => Tasks.Count(task => !task.IsPending && task.Priority == Priority.Low);
+    public int OpenLowCount => Tasks.Count(task => !task.NotTask && task.Priority == Priority.Low);
 
     public bool ShowWelcome => !settingsFile.WelcomeRetired && !HasConnection;
 
@@ -960,6 +1059,14 @@ public void Move(TaskRow task, int index)
             return;
 
         StopWaiting();
+        if (httpClient is not null && (browser is not null || protector is not null) && (!HasConnection || !Online))
+        {
+            Hold(text);
+            if (overFullScreen)
+                DismissRaised();
+            return;
+        }
+
         if (HasConnection && httpClient is not null)
         {
             var work = Interpret(text);
@@ -988,7 +1095,7 @@ public void Move(TaskRow task, int index)
 
     public void Tick(TaskRow task)
     {
-        if (ReadOnly)
+        if (ReadOnly || task.NotTask)
             return;
 
         if (task.IsStriking)
@@ -1166,6 +1273,7 @@ public void MoveTo(int from, int to)
         if (Interlocked.Exchange(ref disposed, 1) != 0)
             return;
 
+        captureCalls.Cancel();
         checking.Cancel();
         CancelSignIn();
         clock.Cancel();
@@ -1218,12 +1326,30 @@ public void MoveTo(int from, int to)
         OnPropertyChanged(nameof(SignInFailed));
         OnPropertyChanged(nameof(SignInNotEligible));
         OnPropertyChanged(nameof(SignInButton));
+        RaiseBanner();
     }
 
     void RaiseWelcome()
     {
         OnPropertyChanged(nameof(ShowWelcome));
         OnPropertyChanged(nameof(ShowEmptyHotkey));
+    }
+
+    void RaiseBanner()
+    {
+        OnPropertyChanged(nameof(SignedOut));
+        OnPropertyChanged(nameof(Banner));
+        OnPropertyChanged(nameof(HasBanner));
+        OnPropertyChanged(nameof(BannerMessage));
+        OnPropertyChanged(nameof(BannerPrimary));
+        OnPropertyChanged(nameof(BannerIsInfo));
+        OnPropertyChanged(nameof(BannerIsWarning));
+        OnPropertyChanged(nameof(BannerIsError));
+        OnPropertyChanged(nameof(BannerBusy));
+        OnPropertyChanged(nameof(BannerNotBusy));
+        OnPropertyChanged(nameof(BannerTip));
+        OnPropertyChanged(nameof(BannerDismissible));
+        OnPropertyChanged(nameof(Attention));
     }
 
     void MarkDirty()
@@ -1250,7 +1376,7 @@ public void MoveTo(int from, int to)
         Draft = CaptureText,
 Manual = HasManualPositions,
         ManualPositions = HasManualPositions,
-        Tasks = Tasks.Where(task => !task.IsPending).Concat(finished).Concat(deleted).Select(Record).ToList(),
+        Tasks = Tasks.Where(task => !task.NotTask).Concat(finished).Concat(deleted).Select(Record).ToList(),
         Captures = captures.Select(capture => new CaptureRecord
         {
             Id = capture.Id,
@@ -1285,8 +1411,11 @@ Manual = HasManualPositions,
         WelcomeRetired = settingsFile.WelcomeRetired,
         ExtAgentHostId = settingsFile.ExtAgentHostId,
         IssuedClientId = settingsFile.IssuedClientId,
+        ReauthEmail = settingsFile.ReauthEmail,
+        ChosenModel = settingsFile.ChosenModel,
         Theme = ThemeName(theme),
         Backdrop = BackdropName(backdrop),
+        HomeMonitor = settingsFile.HomeMonitor,
         Hotkey = hotkeyBinding.Text,
         CheckForUpdatesAutomatically = checkAutomatically,
         LastUpdateCheck = lastUpdateCheck,
@@ -1392,7 +1521,7 @@ Manual = HasManualPositions,
                 live.Add(task.Capture);
         }
 
-        foreach (var capture in captures.Where(capture => capture.State == "interpreted" && !live.Contains(capture.Id)).ToList())
+        foreach (var capture in captures.Where(capture => capture.State is "interpreted" or "as-is" or "discarded" && !live.Contains(capture.Id)).ToList())
         {
             captures.Remove(capture);
             AppendArchive(ArchiveCapture(capture));
@@ -1512,23 +1641,38 @@ Manual = HasManualPositions,
         HasManualPositions = file.Manual || file.ManualPositions;
         CaptureText = file.Draft;
         foreach (var capture in file.Captures ?? [])
+        {
             captures.Add(capture);
+            if (capture.State == "failed")
+                Tasks.Insert(0, FailedRow(capture));
+            else if (capture.State == "waiting")
+            {
+                var row = new TaskRow(capture.Text, Priority.Medium, Effort.Short, "", capture.Id);
+                row.IsWaiting = true;
+                row.Reason = WaitingReason(capture.Cause);
+                row.LightsDot = capture.Cause != "offline";
+                Tasks.Insert(0, row);
+            }
+        }
     }
 
     // New, edited and un-completed Tasks all land here.
     void Place(TaskRow task, DateTimeOffset at, int spokenIndex)
     {
-        task.CreatedAt = at;
-        task.Spoken = spokenIndex;
-        created[task] = at;
-        spoken[task] = spokenIndex;
-        Tasks.Insert(IndexFor(task), task);
+        lock (rows)
+        {
+            task.CreatedAt = at;
+            task.Spoken = spokenIndex;
+            created[task] = at;
+            spoken[task] = spokenIndex;
+            Tasks.Insert(IndexFor(task), task);
+        }
     }
 
     int IndexFor(TaskRow task)
     {
         var i = 0;
-        while (i < Tasks.Count && Tasks[i].IsPending)
+        while (i < Tasks.Count && Tasks[i].NotTask)
             i++;
 
         for (; i < Tasks.Count; i++)
@@ -1619,6 +1763,12 @@ Manual = HasManualPositions,
             var plain = protector.Unprotect(File.ReadAllBytes(tokenPath));
             var file = JsonSerializer.Deserialize(plain, WidgetJsonContext.Default.TokenFile);
             accessToken = file?.AccessToken ?? "";
+            refreshToken = file?.RefreshToken ?? "";
+            idToken = file?.IdToken ?? "";
+            clientId = file?.ClientId ?? "";
+            accessExpiresAt = file?.AccessExpiresAt ?? default;
+            refreshExpiresAt = file?.RefreshExpiresAt ?? default;
+            RememberIdentity(idToken);
             HasConnection = accessToken.Length > 0;
         }
         catch (JsonException)
@@ -1957,17 +2107,6 @@ Manual = HasManualPositions,
         OnPropertyChanged(nameof(Attention));
         RaiseBanner();
         OnPropertyChanged(nameof(CanCheck));
-    }
-
-    void RaiseBanner()
-    {
-        OnPropertyChanged(nameof(Banner));
-        OnPropertyChanged(nameof(HasBanner));
-        OnPropertyChanged(nameof(BannerMessage));
-        OnPropertyChanged(nameof(BannerPrimary));
-        OnPropertyChanged(nameof(BannerIsInfo));
-        OnPropertyChanged(nameof(BannerIsWarning));
-        OnPropertyChanged(nameof(BannerDismissible));
     }
 
     enum UpdatePhase
