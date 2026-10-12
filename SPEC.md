@@ -162,7 +162,7 @@ It is one process, about 55 MB private when docked, with no background updater. 
 109. As a user, I want the Widget to sit at the bottom of the z-order, under my other windows, so that it lives on the desktop and never covers my work.
 110. As a user, I want the Widget to stay visible after Win+D, so that "show desktop" shows my Tasks.
 111. As a user, I want the collapse control (⌄) in the header to turn the Widget into the Dock, and the last state remembered across restarts, so that the app opens the way I left it.
-112. As a user, I want the Dock as a 44 px Capture bar, centred 8 px under the top edge, topmost, not reserving screen space, so that it's always reachable and never shrinks my maximised windows.
+112. As a user, I want the Dock as a 44 px Capture bar, centred 8 px under the top edge, pinned to the bottom of the z-order like the Widget, not reserving screen space, so that it lives on the desktop, never covers my work and never shrinks my maximised windows.
 113. As a user, I want the Dock to show per-Priority badges with counts of open Tasks, hiding levels with none, so that I know my load at a glance.
 114. As a user, I want the Dock hidden while a full-screen app, game or presentation runs on the home monitor, with the hotkey still raising the Widget over it, so that I can still capture during a presentation.
 115. As a multi-monitor user, I want to drag the Widget by its header to another monitor to make it the home monitor, snapping to its top-right anchor, so that I choose where it lives.
@@ -308,7 +308,7 @@ After the automatic retries above, a Capture ends in one of these states:
 ### Desktop placement
 
 - **Widget.** A normal top-level window pinned to the bottom of the z-order (`SetWindowPos(HWND_BOTTOM)`, enforced in `WM_WINDOWPOSCHANGING`). The hotkey raises it to the front, and it re-pins on deactivate. No Progman/WorkerW reparenting (broken on 24H2, dies on Explorer restart). Stays visible on Win+D.
-- **Dock.** A borderless `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` edge window, topmost while shown, not an AppBar (reserves no space). Recreate or re-anchor on Explorer's `TaskbarCreated`.
+- **Dock.** A borderless `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` edge window, pinned to the bottom of the z-order while shown (`HWND_BOTTOM`, enforced in `WM_WINDOWPOSCHANGING`, stays visible on Win+D), not an AppBar (reserves no space). Recreate or re-anchor on Explorer's `TaskbarCreated`.
 - **Home monitor.** The Widget sits at the top-right of the work area with a 28 px margin. The Dock is centred 8 px under the top of the work area (under a top taskbar, or under the screen edge with an auto-hiding one). First run uses the primary monitor. Dragging the Widget by its header strip to another monitor makes that monitor home, and the Widget snaps to its anchor there with the prototype's easing (dropped on the same monitor, it snaps back). The home monitor is stored by device identity. No pixel positions are stored, and there's no Settings picker.
 - While the home monitor is disconnected, both windows use the primary. They return when it reconnects. Only a drag changes the saved home.
 - Re-anchor on display-change, DPI-change and work-area-change. The Widget's height is capped at the work-area height and scrolls beyond it.

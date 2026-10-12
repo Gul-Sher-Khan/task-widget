@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -5,21 +6,28 @@ using TaskWidget.Core;
 using Windows.Graphics;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.UI.Shell;
 using Windows.Win32.UI.WindowsAndMessaging;
 using WinRT.Interop;
 
 namespace TaskWidget;
 
-// The Dock: a topmost tool window that never takes activation and reserves no screen space (not an AppBar).
+// The Dock: a tool window pinned to the bottom of the z-order, like the Widget, so it lives on the desktop and never
+// covers other windows. It never takes activation and reserves no screen space (not an AppBar).
 // Like the prototype, it keeps the DWM border so the window gets Windows 11's rounded corners.
 public sealed partial class DockWindow : Window
 {
     public const double WidthDip = 380;
     public const double HeightDip = 44;
 
-    static readonly HWND InsertTopMost = (HWND)(nint)(-1);
+    const nuint SubclassId = 3;
+
+    // Win32 HWND insert-after value from Winuser.h.
+    static readonly HWND InsertBottom = (HWND)(nint)1;
+    static readonly SUBCLASSPROC Subclass = OnSubclass;
 
     readonly HWND hwnd;
+    readonly GCHandle self;
     readonly WindowLook look;
     readonly Func<RectInt32> placement;
     int motion;
@@ -45,6 +53,13 @@ public sealed partial class DockWindow : Window
         ex |= WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_NOACTIVATE;
         PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)(uint)ex);
 
+        self = GCHandle.Alloc(this);
+        if (!PInvoke.SetWindowSubclass(hwnd, Subclass, SubclassId, (nuint)(nint)GCHandle.ToIntPtr(self)))
+        {
+            self.Free();
+            throw new InvalidOperationException("Could not subclass the Dock window.");
+        }
+
         look = new WindowLook(this, Host);
         // Off screen until the first ShowDock, so starting up never flashes it.
         AppWindow.Move(new PointInt32(-32000, -32000));
@@ -53,7 +68,12 @@ public sealed partial class DockWindow : Window
             if (IsShown)
                 Place(placement());
         };
-        Closed += (_, _) => look.Dispose();
+        Closed += (_, _) =>
+        {
+            look.Dispose();
+            PInvoke.RemoveWindowSubclass(hwnd, Subclass, SubclassId);
+            self.Free();
+        };
     }
 
     public AppModel Model { get; }
@@ -77,7 +97,7 @@ public sealed partial class DockWindow : Window
         IsShown = true;
         Place(placement());
         PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_SHOWNA);
-        KeepOnTop();
+        PinToBottom();
         if (!animate)
         {
             WindowMotion.AnimateContent(DockRoot, show: true, 1);
@@ -109,19 +129,36 @@ public sealed partial class DockWindow : Window
         AppWindow.Hide();
     }
 
-    // Display, DPI, work-area and Explorer restarts move the anchor; topmost is re-asserted after Explorer returns.
+    // Display, DPI, work-area and Explorer restarts move the anchor; the bottom pin is re-asserted after Explorer returns.
     public void Reanchor()
     {
         if (!IsShown)
             return;
         Place(placement());
-        KeepOnTop();
+        PinToBottom();
     }
 
-    void KeepOnTop() =>
+    static LRESULT OnSubclass(HWND window, uint msg, WPARAM wParam, LPARAM lParam, nuint id, nuint data)
+    {
+        if (msg == PInvoke.WM_WINDOWPOSCHANGING && GCHandle.FromIntPtr((nint)data).Target is DockWindow dock)
+            dock.HoldAtBottom(lParam);
+        return PInvoke.DefSubclassProc(window, msg, wParam, lParam);
+    }
+
+    // Clicks and other apps can't raise the Dock. While it's shown, Win+D can't hide it either.
+    unsafe void HoldAtBottom(LPARAM lParam)
+    {
+        var pos = (WINDOWPOS*)(nint)lParam;
+        pos->hwndInsertAfter = InsertBottom;
+        pos->flags &= ~SET_WINDOW_POS_FLAGS.SWP_NOZORDER;
+        if (IsShown)
+            pos->flags &= ~SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW;
+    }
+
+    void PinToBottom() =>
         PInvoke.SetWindowPos(
             hwnd,
-            InsertTopMost,
+            InsertBottom,
             0,
             0,
             0,
